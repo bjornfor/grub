@@ -496,21 +496,9 @@ grub_xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid,
 
   if (pciid == GRUB_CS5536_PCIID)
     {
-      grub_uint64_t basereg;
-
-      basereg = grub_cs5536_read_msr (dev, GRUB_CS5536_MSR_USB_XHCI_BASE);
-      if (!(basereg & GRUB_CS5536_MSR_USB_BASE_MEMORY_ENABLE))
-	{
-	  /* Shouldn't happen.  */
-	  grub_dprintf ("xhci", "No xHCI address is assigned\n");
-	  return 0;
-	}
-      base = (basereg & GRUB_CS5536_MSR_USB_BASE_ADDR_MASK);
-      basereg |= GRUB_CS5536_MSR_USB_BASE_BUS_MASTER;
-      basereg &= ~GRUB_CS5536_MSR_USB_BASE_PME_ENABLED;
-      basereg &= ~GRUB_CS5536_MSR_USB_BASE_PME_STATUS;
-      basereg &= ~GRUB_CS5536_MSR_USB_BASE_SMI_ENABLE;
-      grub_cs5536_write_msr (dev, GRUB_CS5536_MSR_USB_XHCI_BASE, basereg);
+      /* Doesn't have xHCI */
+      grub_dprintf ("xhci", "CS5536 does not support xHCI\n");
+      return 0;
     }
   else
     {
