@@ -510,7 +510,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid,
       class = class_code >> 16;
 
       /* If this is not an xHCI controller, just return.  */
-      if (class != 0x0c || subclass != 0x03 || interf != 0x20)
+      if (class != 0x0c || subclass != 0x03 || interf != 0x30)
 	return 0;
 
       grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: class OK\n");
@@ -518,7 +518,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid,
       /* Check Serial Bus Release Number */
       addr = grub_pci_make_address (dev, GRUB_XHCI_PCI_SBRN_REG);
       release = grub_pci_read_byte (addr);
-      if (release != 0x20)
+      if (release != 0x30)
 	{
 	  grub_dprintf ("xhci", "XHCI grub_xhci_pci_iter: Wrong SBRN: %0x\n",
 			release);
