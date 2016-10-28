@@ -337,6 +337,8 @@ grub_usb_controller_dev_register (grub_usb_controller_dev_t usb)
 		    hub->ports[portno].state = PORT_STATE_WAITING_FOR_STABLE_POWER;
 		    grub_boot_time ("Scheduling stable power wait for port %p:%d",
 				    usb, portno);
+		    grub_dprintf ("usb", "Scheduling stable power wait for port %p:%d\n",
+				    usb, portno);
 		    continue_waiting++;
 		    continue;
 		  }
@@ -352,6 +354,8 @@ grub_usb_controller_dev_register (grub_usb_controller_dev_t usb)
 		  {
 		    hub->ports[portno].state = PORT_STATE_STABLE_POWER;
 		    grub_boot_time ("Got stable power wait for port %p:%d",
+				    usb, portno);
+		    grub_dprintf ("usb", "Got stable power wait for port %p:%d\n",
 				    usb, portno);
 		    continue_waiting--;
 		    continue;
@@ -676,6 +680,9 @@ grub_usb_poll_devices (int wait_for_completion)
       /* No, it should be never changed, it should be constant. */
       for (i = 0; i < hub->nports; i++)
 	{
+          grub_dprintf("usb", "grub_usb_poll_devices hub=0x%08x port=%d\n",
+              (unsigned int)hub, i);
+          grub_millisleep(1000);
 	  grub_usb_speed_t speed = GRUB_USB_SPEED_NONE;
 	  int changed = 0;
 

@@ -60,7 +60,8 @@ static const char *usb_devspeed[] =
     "",
     "Low",
     "Full",
-    "High"
+    "High",
+    "Super",
   };
 
 static grub_usb_err_t
