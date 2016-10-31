@@ -2,7 +2,7 @@
 
 tftpdir=/srv/tftp
 
-if [ "$0" = "quick" ]; then
+if [ "$1" = "quick" ]; then
     echo
     echo "WARNING: Building only select modules: usb,usbtest,xhci"
     echo
