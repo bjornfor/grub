@@ -1732,18 +1732,8 @@ grub_xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
   for (xhci = xhci_list; xhci; xhci = xhci->next)
     {
       dev.data = xhci;
-      grub_dprintf ("xhci",
-          "grub_xhci_iterate: invoking hook (0x%08x) with data (0x%08x)\n",
-          (unsigned int)hook, (unsigned int)hook_data);
       if (hook (&dev, hook_data))
-        {
-          grub_dprintf ("xhci", "grub_xhci_iterate: hook completed with status != 0\n");
           return 1;
-        }
-      else
-        {
-          grub_dprintf ("xhci", "grub_xhci_iterate: hook completed with status == 0\n");
-        }
     }
 
   return 0;
