@@ -249,8 +249,37 @@ enum
 #define GRUB_XHCI_BUFPAGELEN     0x1000
 #define GRUB_XHCI_MAXBUFLEN      0x5000
 
+
+/** Capability register length */
+#define XHCI_CAP_CAPLENGTH 0x00
+
+/** Host controller interface version number */
+#define XHCI_CAP_HCIVERSION 0x02
+
+/** Structural parameters 1 */
+#define XHCI_CAP_HCSPARAMS1 0x04
+
+/** Number of device slots */
+#define XHCI_HCSPARAMS1_SLOTS(params) ( ( (params) >> 0 ) & 0xff )
+
+/** Number of interrupters */
+#define XHCI_HCSPARAMS1_INTRS(params) ( ( (params) >> 8 ) & 0x3ff )
+
+/** Number of ports */
+#define XHCI_HCSPARAMS1_PORTS(params) ( ( (params) >> 24 ) & 0xff )
+
+/** Structural parameters 2 */
+#define XHCI_CAP_HCSPARAMS2 0x08
+
+/** Number of page-sized scratchpad buffers */
+#define XHCI_HCSPARAMS2_SCRATCHPADS(params) \
+	( ( ( (params) >> 16 ) & 0x3e0 ) | ( ( (params) >> 27 ) & 0x1f ) )
+
+/** Capability parameters */
+#define XHCI_CAP_HCCPARAMS1 0x10
+
 static grub_uint32_t
-pci_config_read (grub_pci_device_t dev, int reg)
+pci_config_read (grub_pci_device_t dev, unsigned int reg)
 {
   grub_pci_address_t addr;
   addr = grub_pci_make_address (dev, reg);
@@ -259,13 +288,20 @@ pci_config_read (grub_pci_device_t dev, int reg)
 
 struct grub_xhci
 {
+  volatile void *regs;     /* Start of registers (same addr as capability) */
+
+  /* Pointers to specific register areas */
   volatile grub_uint32_t *cap;	   /* Capability registers */
+  volatile grub_uint32_t *oper;	   /* Operational registers */
+  volatile grub_uint32_t *runtime;  /* Runtime registers */
+  volatile grub_uint32_t *doorbell; /* Doorbell Array */
+
+  unsigned int slots;  /* number of device slots */
+  unsigned int ports;  /* number of ports */
 
   /* grub stuff */
   volatile grub_uint32_t *iobase_cap;	   /* Capability registers */
   volatile grub_uint32_t *iobase_oper;	   /* Operational registers */
-  volatile grub_uint32_t *iobase_runtime;  /* Run-time registers */
-  volatile grub_uint32_t *iobase_doorbell; /* Doorbell array */
   //unsigned int reset;
 
   struct grub_xhci *next;
@@ -275,11 +311,17 @@ static struct grub_xhci *xhci_list;
 
 /* xHCI capability registers access functions */
 static inline grub_uint32_t
-grub_xhci_cap_read32 (struct grub_xhci *xhci, grub_uint32_t addr)
+grub_xhci_cap_read32 (struct grub_xhci *xhci, grub_uint32_t off)
 {
   return
-    grub_le_to_cpu32 (*((volatile grub_uint32_t *) xhci->iobase_cap +
-		       (addr / sizeof (grub_uint32_t))));
+    grub_le_to_cpu32 (*((volatile grub_uint32_t *) xhci->cap +
+		       (off / sizeof (grub_uint32_t))));
+}
+
+static inline grub_uint32_t
+mmio_read (volatile void *addr)
+{
+  return grub_le_to_cpu32 (*((volatile grub_uint32_t *) addr));
 }
 
 /* Halt if xHCI HC not halted */
@@ -421,284 +463,6 @@ grub_xhci_port_setbits (struct grub_xhci *xhci, grub_uint32_t port,
   grub_xhci_port_read (xhci, port);
 }
 
-static int
-grub_xhci_init (struct grub_xhci *xhci, void *regs)
-{
-  //pci_device_cfg_read_u16 (addr.dev, &ret, addr.pos);
-#if 0
-  grub_int32_t hcsparams1;
-  grub_uint32_t hcsparams2;
-  grub_uint32_t hccparams1;
-  grub_uint32_t pagesize;
-  unsigned int caplength;
-  unsigned int rtsoff;
-  unsigned int dboff;
-
-  /* Locate capability, operational, runtime, and doorbell registers */
-  xhci->cap = regs;
-  caplength = readb ( xhci->cap + XHCI_CAP_CAPLENGTH );
-  rtsoff = readl ( xhci->cap + XHCI_CAP_RTSOFF );
-  dboff = readl ( xhci->cap + XHCI_CAP_DBOFF );
-  xhci->op = ( xhci->cap + caplength );
-  xhci->run = ( xhci->cap + rtsoff );
-  xhci->db = ( xhci->cap + dboff );
-  DBGC2 ( xhci, "XHCI %s cap %08lx op %08lx run %08lx db %08lx\n",
-      xhci->name, virt_to_phys ( xhci->cap ),
-      virt_to_phys ( xhci->op ), virt_to_phys ( xhci->run ),
-      virt_to_phys ( xhci->db ) );
-
-  /* Read structural parameters 1 */
-  hcsparams1 = readl ( xhci->cap + XHCI_CAP_HCSPARAMS1 );
-  xhci->slots = XHCI_HCSPARAMS1_SLOTS ( hcsparams1 );
-  xhci->intrs = XHCI_HCSPARAMS1_INTRS ( hcsparams1 );
-  xhci->ports = XHCI_HCSPARAMS1_PORTS ( hcsparams1 );
-  DBGC ( xhci, "XHCI %s has %d slots %d intrs %d ports\n",
-      xhci->name, xhci->slots, xhci->intrs, xhci->ports );
-
-  /* Read structural parameters 2 */
-  hcsparams2 = readl ( xhci->cap + XHCI_CAP_HCSPARAMS2 );
-  xhci->scratchpads = XHCI_HCSPARAMS2_SCRATCHPADS ( hcsparams2 );
-  DBGC2 ( xhci, "XHCI %s needs %d scratchpads\n",
-      xhci->name, xhci->scratchpads );
-
-  /* Read capability parameters 1 */
-  hccparams1 = readl ( xhci->cap + XHCI_CAP_HCCPARAMS1 );
-  xhci->addr64 = XHCI_HCCPARAMS1_ADDR64 ( hccparams1 );
-  xhci->csz_shift = XHCI_HCCPARAMS1_CSZ_SHIFT ( hccparams1 );
-  xhci->xecp = XHCI_HCCPARAMS1_XECP ( hccparams1 );
-
-  /* Read page size */
-  pagesize = readl ( xhci->op + XHCI_OP_PAGESIZE );
-  xhci->pagesize = XHCI_PAGESIZE ( pagesize );
-  assert ( xhci->pagesize != 0 );
-  assert ( ( ( xhci->pagesize ) & ( xhci->pagesize - 1 ) ) == 0 );
-  DBGC2 ( xhci, "XHCI %s page size %zd bytes\n",
-      xhci->name, xhci->pagesize );
-#endif
-
-  /*** GRUB CODE BELOW ***/
-
-  grub_uint32_t base, base_h;
-  //grub_uint32_t n_ports;
-  grub_uint8_t caplen;
-  grub_pci_address_t addr;
-  //grub_uint32_t hccparams1;
-  int status;
-
-  /*
-   * Map MMIO registers
-   */
-  addr = grub_pci_make_address (dev, GRUB_PCI_REG_BAR0);
-  base = grub_pci_read (addr);
-  addr = grub_pci_make_address (dev, GRUB_PCI_REG_BAR1);
-  base_h = grub_pci_read (addr);
-  /* Stop if registers are mapped above 4G - GRUB does not currently
-     work with registers mapped above 4G */
-  if (((base & GRUB_PCI_ADDR_MEM_TYPE_MASK) != GRUB_PCI_ADDR_MEM_TYPE_32)
-      && (base_h != 0))
-    {
-      grub_dprintf ("xhci",
-                      "xHCI grub_xhci_pci_iter: registers above 4G are not supported\n");
-      return 0;
-    }
-  base &= GRUB_PCI_ADDR_MEM_MASK;
-  if (!base)
-    {
-      grub_dprintf ("xhci",
-                      "xHCI: xHCI is not mapped\n");
-      return 0;
-    }
-
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: 32-bit xHCI OK\n");
-
-  /* Allocate memory for the controller and fill basic values. */
-  xhci = grub_zalloc (sizeof (*xhci));
-  if (!xhci)
-    return 1;
-
-  xhci->iobase_cap = grub_pci_device_map_range (dev,
-                  (base & GRUB_XHCI_ADDR_MEM_MASK),
-                  0x100); /* PCI config space is 256 bytes */
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: iobase of CAP: %08x\n",
-		(xhci->iobase_cap));
-
-  /* Determine base address of xHCI operational registers */
-  caplen = grub_xhci_cap_read8 (xhci, GRUB_XHCI_CAP_CAPLENGTH);
-#ifndef GRUB_HAVE_UNALIGNED_ACCESS
-  if (caplen & (sizeof (grub_uint32_t) - 1))
-    {
-      grub_dprintf ("xhci", "Unaligned caplen\n");
-      return 0;
-    }
-  xhci->iobase_oper = ((volatile grub_uint32_t *) xhci->iobase_cap
-	       + (caplen / sizeof (grub_uint32_t)));
-#else
-  xhci->iobase_oper = (volatile grub_uint32_t *)
-    ((grub_uint8_t *) xhci->iobase_cap + caplen);
-#endif
-
-  /* TODO: initialize the various "rings" and TRBs */
-
-#if 0
-  /* Determine and change ownership. */
-
-  /* TODO: Check if handover is supported */
-  addr = grub_pci_make_address (dev, GRUB_XHCI_CAP_HCCPARAMS1);
-  hccparams1 = grub_pci_read(addr);
-  xecp = hccparams1 >> 16;
-  if (xecp)
-    {
-      addr = grub_pci_make_address (dev, 0);
-      addr += sizeof(uint32_t) * 
-      hccparams1 = grub_pci_read(addr);
-    }
-
-  /* XECP offset valid in HCCPARAMS1 */
-  /* Ownership can be changed via XECP only */
-  if (eecp_offset >= 0x40)
-  {
-    grub_pci_address_t pciaddr_eecp;
-    pciaddr_eecp = grub_pci_make_address (dev, eecp_offset);
-
-    usblegsup = grub_pci_read (pciaddr_eecp);
-    if (usblegsup & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
-      {
-        grub_boot_time ("Taking ownership of xHCI controller");
-        grub_dprintf ("xhci",
-                      "xHCI grub_xhci_pci_iter: xHCI owned by: BIOS\n");
-        /* Ownership change - set OS_OWNED bit */
-        grub_pci_write (pciaddr_eecp, usblegsup | GRUB_XHCI_USBLEGSUP_OS_OWNED);
-        /* Ensure PCI register is written */
-        grub_pci_read (pciaddr_eecp);
-
-        /* Wait for finish of ownership change, xHCI specification
-         * says it can take up to 16 ms
-         */
-        maxtime = grub_get_time_ms () + 1000;
-        while ((grub_pci_read (pciaddr_eecp) & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
-               && (grub_get_time_ms () < maxtime));
-        if (grub_pci_read (pciaddr_eecp) & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
-          {
-            grub_dprintf ("xhci",
-                          "xHCI grub_xhci_pci_iter: xHCI change ownership timeout");
-            /* Change ownership in "hard way" - reset BIOS ownership */
-            grub_pci_write (pciaddr_eecp, GRUB_XHCI_USBLEGSUP_OS_OWNED);
-            /* Ensure PCI register is written */
-            grub_pci_read (pciaddr_eecp);
-          }
-      }
-    else if (usblegsup & GRUB_XHCI_USBLEGSUP_OS_OWNED)
-      /* XXX: What to do in this case - nothing ? Can it happen ? */
-      grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: xHCI owned by: OS\n");
-    else
-      {
-        grub_dprintf ("xhci",
-                      "xHCI grub_xhci_pci_iter: xHCI owned by: NONE\n");
-        /* XXX: What to do in this case ? Can it happen ?
-         * Is code below correct ? */
-        /* Ownership change - set OS_OWNED bit */
-        grub_pci_write (pciaddr_eecp, GRUB_XHCI_USBLEGSUP_OS_OWNED);
-        /* Ensure PCI register is written */
-        grub_pci_read (pciaddr_eecp);
-      }
-
-    /* Disable SMI, just to be sure.  */
-    pciaddr_eecp = grub_pci_make_address (dev, eecp_offset + 4);
-    grub_pci_write (pciaddr_eecp, 0);
-    /* Ensure PCI register is written */
-    grub_pci_read (pciaddr_eecp);
-  }
-
-  grub_dprintf ("xhci", "inithw: xHCI grub_xhci_pci_iter: ownership OK\n");
-
-#endif
-
-  /* Now we can setup xHCI (maybe...) */
-
-  /* Check if xHCI is halted and halt it if not */
-  if (grub_xhci_halt (xhci) != GRUB_USB_ERR_NONE)
-    {
-      grub_error (GRUB_ERR_TIMEOUT,
-		  "xHCI grub_xhci_pci_iter: xHCI halt timeout");
-      goto fail;
-    }
-
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: halted OK\n");
-
-  /* Reset xHCI */
-  if (grub_xhci_reset (xhci) != GRUB_USB_ERR_NONE)
-    {
-      grub_error (GRUB_ERR_TIMEOUT,
-		  "xHCI grub_xhci_pci_iter: xHCI reset timeout");
-      goto fail;
-    }
-
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: reset OK\n");
-
-#if 0
-  /* Now should be possible to power-up and enumerate ports etc. */
-  if ((grub_xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
-       & GRUB_XHCI_SPARAMS_PPC) != 0)
-    {				/* xHCI has port powering control */
-      /* Power on all ports */
-      n_ports = grub_xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
-	& GRUB_XHCI_SPARAMS_N_PORTS;
-      for (i = 0; i < (int) n_ports; i++)
-	grub_xhci_oper_write32 (xhci, GRUB_XHCI_PORTSC(port),
-				GRUB_XHCI_PORT_POWER
-				| grub_xhci_oper_read32 (xhci,
-							 GRUB_XHCI_PORTSC(i)));
-    }
-
-#endif
-  /* Ensure all commands are written */
-  grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD);
-
-  /* Enable xHCI */
-  grub_xhci_oper_write32 (xhci, GRUB_XHCI_OPER_USBCMD,
-			  GRUB_XHCI_OPER_USBCMD_RUNSTOP
-			  | grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
-
-  /* Ensure command is written */
-  grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD);
-
-  /* Link to xhci now that initialisation is successful.  */
-  xhci->next = xhci_list;
-  xhci_list = xhci;
-
-  sync_all_caches (xhci);
-
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: OK at all\n");
-
-  grub_dprintf ("xhci",
-		"xHCI grub_xhci_pci_iter: iobase of oper. regs: %08x\n",
-		((unsigned int)xhci->iobase_oper));
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: USBCMD: %08x\n",
-		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: USBSTS: %08x\n",
-		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBSTS));
-
-  return 0;
-
-fail:
-  if (xhci)
-    {
-//      if (xhci->td_chunk)
-//	grub_dma_free ((void *) xhci->td_chunk);
-//      if (xhci->qh_chunk)
-//	grub_dma_free ((void *) xhci->qh_chunk);
-//      if (xhci->framelist_chunk)
-//	grub_dma_free (xhci->framelist_chunk);
-    }
-  grub_free (xhci);
-
-}
-
-static int
-grub_pci_config_read (grub_pci_device_t dev, int reg)
-{
-  return *(volatile grub_uint32_t *) config_addr (addr);
-}
 
 #endif
   
@@ -1071,14 +835,22 @@ grub_xhci_portstatus (grub_usb_controller_t dev,
 static int
 grub_xhci_hubports (grub_usb_controller_t dev)
 {
-  (void)dev;
-  //struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
-  //grub_uint32_t hcsparams1;
+  struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
+  grub_uint32_t hcsparams1;
   unsigned int nports = 0;
 
-  //hcsparams1 = grub_xhci_cap_read32 (xhci, GRUB_XHCI_CAP_HCSPARAMS1);
-  //nports = ((hcsparams1 >> 24) & 0xff);
+  hcsparams1 = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS1);
+  nports = ((hcsparams1 >> 24) & 0xff);
+  xhci->slots = ((hcsparams1 >> 24) & 0xff);
   grub_dprintf ("xhci", "grub_xhci_hubports nports=%d\n", nports);
+  nports = 0;
+
+  ///* Read structural parameters 1 */
+  //hcsparams1 = readl ( xhci->cap + XHCI_CAP_HCSPARAMS1 );
+  //xhci->slots = XHCI_HCSPARAMS1_SLOTS ( hcsparams1 );
+  //xhci->ports = XHCI_HCSPARAMS1_PORTS ( hcsparams1 );
+  //grub_dprintf ("usb", "%s has %d slots %d intrs %d ports\n",
+  //    xhci->name, xhci->slots, xhci->intrs, xhci->ports );
   return nports;
 }
 
@@ -1314,25 +1086,445 @@ grub_xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
   return 0;
 }
 
+static int
+grub_xhci_dump_cap(struct grub_xhci *xhci)
+{
+  grub_uint32_t val;
+
+  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_CAPLENGTH);
+  grub_dprintf ("xhci", "CAPLENGTH=%d\n", val & 0xff);
+
+  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCIVERSION);
+  grub_dprintf ("xhci", "HCIVERSION=0x%08x\n", val & 0xffff);
+
+  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS1);
+  grub_dprintf ("xhci", "HCSPARAMS1=0x%08x\n", val);
+
+  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS2);
+  grub_dprintf ("xhci", "HCSPARAMS2=0x%08x\n", val);
+
+  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS3);
+  grub_dprintf ("xhci", "HCSPARAMS3=0x%08x\n", val);
+
+  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCCPARAMS1);
+  grub_dprintf ("xhci", "HCCPARAMS1=0x%08x\n", val);
+
+  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_DBOFF);
+  grub_dprintf ("xhci", "DBOFF=0x%08x\n", val);
+
+  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_RTSOFF);
+  grub_dprintf ("xhci", "RTSOFF=0x%08x\n", val);
+
+  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCCPARAMS2);
+  grub_dprintf ("xhci", "HCCPARAMS2=0x%08x\n", val);
+
+  return 0;
+}
+
+static int
+grub_xhci_init (struct grub_xhci *xhci, volatile void *regs)
+{
+  //pci_device_cfg_read_u16 (addr.dev, &ret, addr.pos);
+  //grub_int32_t hcsparams1;
+  //grub_uint32_t hcsparams2;
+  //grub_uint32_t hccparams1;
+  //grub_uint32_t pagesize;
+  unsigned int caplength;
+  //unsigned int rtsoff;
+  //unsigned int dboff;
+
+  //hcsparams1 = grub_xhci_cap_read32 (xhci, GRUB_XHCI_CAP_HCSPARAMS1);
+  //nports = ((hcsparams1 >> 24) & 0xff);
+  //xhci->slots = ((hcsparams1 >> 24) & 0xff);
+
+  (void)xhci;
+  (void)regs;
+  (void)caplength;
+
+  /* Locate capability, operational, runtime, and doorbell registers */
+  xhci->cap = regs;
+  //caplength = mmio_read (xhci->cap + XHCI_CAP_CAPLENGTH);
+  grub_xhci_dump_cap(xhci);
+
+#if 0
+  rtsoff = readl ( xhci->cap + XHCI_CAP_RTSOFF );
+  dboff = readl ( xhci->cap + XHCI_CAP_DBOFF );
+  xhci->op = ( xhci->cap + caplength );
+  xhci->run = ( xhci->cap + rtsoff );
+  xhci->db = ( xhci->cap + dboff );
+  DBGC2 ( xhci, "XHCI %s cap %08lx op %08lx run %08lx db %08lx\n",
+      xhci->name, virt_to_phys ( xhci->cap ),
+      virt_to_phys ( xhci->op ), virt_to_phys ( xhci->run ),
+      virt_to_phys ( xhci->db ) );
+
+  /* Read structural parameters 1 */
+  hcsparams1 = readl ( xhci->cap + XHCI_CAP_HCSPARAMS1 );
+  xhci->slots = XHCI_HCSPARAMS1_SLOTS ( hcsparams1 );
+  xhci->intrs = XHCI_HCSPARAMS1_INTRS ( hcsparams1 );
+  xhci->ports = XHCI_HCSPARAMS1_PORTS ( hcsparams1 );
+  DBGC ( xhci, "XHCI %s has %d slots %d intrs %d ports\n",
+      xhci->name, xhci->slots, xhci->intrs, xhci->ports );
+
+  /* Read structural parameters 2 */
+  hcsparams2 = readl ( xhci->cap + XHCI_CAP_HCSPARAMS2 );
+  xhci->scratchpads = XHCI_HCSPARAMS2_SCRATCHPADS ( hcsparams2 );
+  DBGC2 ( xhci, "XHCI %s needs %d scratchpads\n",
+      xhci->name, xhci->scratchpads );
+
+  /* Read capability parameters 1 */
+  hccparams1 = readl ( xhci->cap + XHCI_CAP_HCCPARAMS1 );
+  xhci->addr64 = XHCI_HCCPARAMS1_ADDR64 ( hccparams1 );
+  xhci->csz_shift = XHCI_HCCPARAMS1_CSZ_SHIFT ( hccparams1 );
+  xhci->xecp = XHCI_HCCPARAMS1_XECP ( hccparams1 );
+
+  /* Read page size */
+  pagesize = readl ( xhci->op + XHCI_OP_PAGESIZE );
+  xhci->pagesize = XHCI_PAGESIZE ( pagesize );
+  assert ( xhci->pagesize != 0 );
+  assert ( ( ( xhci->pagesize ) & ( xhci->pagesize - 1 ) ) == 0 );
+  DBGC2 ( xhci, "XHCI %s page size %zd bytes\n",
+      xhci->name, xhci->pagesize );
+
+  /*** GRUB CODE BELOW ***/
+
+  grub_uint32_t base, base_h;
+  //grub_uint32_t n_ports;
+  grub_uint8_t caplen;
+  grub_pci_address_t addr;
+  //grub_uint32_t hccparams1;
+  int status;
+
+  /*
+   * Map MMIO registers
+   */
+  addr = grub_pci_make_address (dev, GRUB_PCI_REG_BAR0);
+  base = grub_pci_read (addr);
+  addr = grub_pci_make_address (dev, GRUB_PCI_REG_BAR1);
+  base_h = grub_pci_read (addr);
+  /* Stop if registers are mapped above 4G - GRUB does not currently
+     work with registers mapped above 4G */
+  if (((base & GRUB_PCI_ADDR_MEM_TYPE_MASK) != GRUB_PCI_ADDR_MEM_TYPE_32)
+      && (base_h != 0))
+    {
+      grub_dprintf ("xhci",
+                      "xHCI grub_xhci_pci_iter: registers above 4G are not supported\n");
+      return 0;
+    }
+  base &= GRUB_PCI_ADDR_MEM_MASK;
+  if (!base)
+    {
+      grub_dprintf ("xhci",
+                      "xHCI: xHCI is not mapped\n");
+      return 0;
+    }
+
+  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: 32-bit xHCI OK\n");
+
+  /* Allocate memory for the controller and fill basic values. */
+  xhci = grub_zalloc (sizeof (*xhci));
+  if (!xhci)
+    return 1;
+
+  xhci->iobase_cap = grub_pci_device_map_range (dev,
+                  (base & GRUB_XHCI_ADDR_MEM_MASK),
+                  0x100); /* PCI config space is 256 bytes */
+  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: iobase of CAP: %08x\n",
+		(xhci->iobase_cap));
+
+  /* Determine base address of xHCI operational registers */
+  caplen = grub_xhci_cap_read8 (xhci, GRUB_XHCI_CAP_CAPLENGTH);
+#ifndef GRUB_HAVE_UNALIGNED_ACCESS
+  if (caplen & (sizeof (grub_uint32_t) - 1))
+    {
+      grub_dprintf ("xhci", "Unaligned caplen\n");
+      return 0;
+    }
+  xhci->iobase_oper = ((volatile grub_uint32_t *) xhci->iobase_cap
+	       + (caplen / sizeof (grub_uint32_t)));
+#else
+  xhci->iobase_oper = (volatile grub_uint32_t *)
+    ((grub_uint8_t *) xhci->iobase_cap + caplen);
+#endif
+
+  /* TODO: initialize the various "rings" and TRBs */
+
+  /* Determine and change ownership. */
+
+  /* TODO: Check if handover is supported */
+  addr = grub_pci_make_address (dev, GRUB_XHCI_CAP_HCCPARAMS1);
+  hccparams1 = grub_pci_read(addr);
+  xecp = hccparams1 >> 16;
+  if (xecp)
+    {
+      addr = grub_pci_make_address (dev, 0);
+      addr += sizeof(uint32_t) * 
+      hccparams1 = grub_pci_read(addr);
+    }
+
+  /* XECP offset valid in HCCPARAMS1 */
+  /* Ownership can be changed via XECP only */
+  if (eecp_offset >= 0x40)
+  {
+    grub_pci_address_t pciaddr_eecp;
+    pciaddr_eecp = grub_pci_make_address (dev, eecp_offset);
+
+    usblegsup = grub_pci_read (pciaddr_eecp);
+    if (usblegsup & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
+      {
+        grub_boot_time ("Taking ownership of xHCI controller");
+        grub_dprintf ("xhci",
+                      "xHCI grub_xhci_pci_iter: xHCI owned by: BIOS\n");
+        /* Ownership change - set OS_OWNED bit */
+        grub_pci_write (pciaddr_eecp, usblegsup | GRUB_XHCI_USBLEGSUP_OS_OWNED);
+        /* Ensure PCI register is written */
+        grub_pci_read (pciaddr_eecp);
+
+        /* Wait for finish of ownership change, xHCI specification
+         * says it can take up to 16 ms
+         */
+        maxtime = grub_get_time_ms () + 1000;
+        while ((grub_pci_read (pciaddr_eecp) & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
+               && (grub_get_time_ms () < maxtime));
+        if (grub_pci_read (pciaddr_eecp) & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
+          {
+            grub_dprintf ("xhci",
+                          "xHCI grub_xhci_pci_iter: xHCI change ownership timeout");
+            /* Change ownership in "hard way" - reset BIOS ownership */
+            grub_pci_write (pciaddr_eecp, GRUB_XHCI_USBLEGSUP_OS_OWNED);
+            /* Ensure PCI register is written */
+            grub_pci_read (pciaddr_eecp);
+          }
+      }
+    else if (usblegsup & GRUB_XHCI_USBLEGSUP_OS_OWNED)
+      /* XXX: What to do in this case - nothing ? Can it happen ? */
+      grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: xHCI owned by: OS\n");
+    else
+      {
+        grub_dprintf ("xhci",
+                      "xHCI grub_xhci_pci_iter: xHCI owned by: NONE\n");
+        /* XXX: What to do in this case ? Can it happen ?
+         * Is code below correct ? */
+        /* Ownership change - set OS_OWNED bit */
+        grub_pci_write (pciaddr_eecp, GRUB_XHCI_USBLEGSUP_OS_OWNED);
+        /* Ensure PCI register is written */
+        grub_pci_read (pciaddr_eecp);
+      }
+
+    /* Disable SMI, just to be sure.  */
+    pciaddr_eecp = grub_pci_make_address (dev, eecp_offset + 4);
+    grub_pci_write (pciaddr_eecp, 0);
+    /* Ensure PCI register is written */
+    grub_pci_read (pciaddr_eecp);
+  }
+
+  grub_dprintf ("xhci", "inithw: xHCI grub_xhci_pci_iter: ownership OK\n");
+
+  /* Now we can setup xHCI (maybe...) */
+
+  /* Check if xHCI is halted and halt it if not */
+  if (grub_xhci_halt (xhci) != GRUB_USB_ERR_NONE)
+    {
+      grub_error (GRUB_ERR_TIMEOUT,
+		  "xHCI grub_xhci_pci_iter: xHCI halt timeout");
+      goto fail;
+    }
+
+  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: halted OK\n");
+
+  /* Reset xHCI */
+  if (grub_xhci_reset (xhci) != GRUB_USB_ERR_NONE)
+    {
+      grub_error (GRUB_ERR_TIMEOUT,
+		  "xHCI grub_xhci_pci_iter: xHCI reset timeout");
+      goto fail;
+    }
+
+  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: reset OK\n");
+
+  /* Now should be possible to power-up and enumerate ports etc. */
+  if ((grub_xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
+       & GRUB_XHCI_SPARAMS_PPC) != 0)
+    {				/* xHCI has port powering control */
+      /* Power on all ports */
+      n_ports = grub_xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
+	& GRUB_XHCI_SPARAMS_N_PORTS;
+      for (i = 0; i < (int) n_ports; i++)
+	grub_xhci_oper_write32 (xhci, GRUB_XHCI_PORTSC(port),
+				GRUB_XHCI_PORT_POWER
+				| grub_xhci_oper_read32 (xhci,
+							 GRUB_XHCI_PORTSC(i)));
+    }
+
+  /* Ensure all commands are written */
+  grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD);
+
+  /* Enable xHCI */
+  grub_xhci_oper_write32 (xhci, GRUB_XHCI_OPER_USBCMD,
+			  GRUB_XHCI_OPER_USBCMD_RUNSTOP
+			  | grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
+
+  /* Ensure command is written */
+  grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD);
+
+  /* Link to xhci now that initialisation is successful.  */
+  xhci->next = xhci_list;
+  xhci_list = xhci;
+
+  sync_all_caches (xhci);
+
+  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: OK at all\n");
+
+  grub_dprintf ("xhci",
+		"xHCI grub_xhci_pci_iter: iobase of oper. regs: %08x\n",
+		((unsigned int)xhci->iobase_oper));
+  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: USBCMD: %08x\n",
+		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
+  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: USBSTS: %08x\n",
+		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBSTS));
+
+#endif
+  return 0;
+
+//fail:
+//  if (xhci)
+//    {
+////      if (xhci->td_chunk)
+////	grub_dma_free ((void *) xhci->td_chunk);
+////      if (xhci->qh_chunk)
+////	grub_dma_free ((void *) xhci->qh_chunk);
+////      if (xhci->framelist_chunk)
+////	grub_dma_free (xhci->framelist_chunk);
+//    }
+  grub_free (xhci);
+  return 0;
+}
+
+#if 0
+static int
+grub_pci_config_read (grub_pci_device_t dev, int reg)
+{
+  return *(volatile grub_uint32_t *) config_addr (addr);
+}
+#endif
+
+/*
+ * Read PCI BAR
+ *
+ * @v pci		PCI device
+ * @v reg		PCI register number
+ * @ret bar		Base address register
+ *
+ * Reads the specified PCI base address register, including the flags
+ * portion.  64-bit BARs will be handled automatically.  If the value
+ * of the 64-bit BAR exceeds the size of an unsigned long (i.e. if the
+ * high dword is non-zero on a 32-bit platform), then the value
+ * returned will be zero plus the flags for a 64-bit BAR.  Unreachable
+ * 64-bit BARs are therefore returned as uninitialised 64-bit BARs.
+ */
+static unsigned long pci_bar ( struct grub_pci_device *dev, unsigned int reg ) {
+  grub_uint32_t low;
+  grub_uint32_t high;
+
+  low = pci_config_read (*dev, reg);
+  if ( ( low & (GRUB_PCI_ADDR_SPACE_IO|GRUB_PCI_ADDR_MEM_TYPE_MASK))
+      == GRUB_PCI_ADDR_MEM_TYPE_64 )
+    {
+      high = pci_config_read (*dev, reg + 4);
+      if ( high )
+        {
+          if ( sizeof ( unsigned long ) > sizeof ( grub_uint32_t ) ) {
+            return ( ( ( grub_uint64_t ) high << 32 ) | low );
+          }
+        else
+          {
+            grub_dprintf ("xhci", "unhandled 64-bit BAR\n");
+            return GRUB_PCI_ADDR_MEM_TYPE_64;
+          }
+        }
+    }
+  return low;
+}
+
+/**
+ * Find the start of a PCI BAR
+ *
+ * @v pci		PCI device
+ * @v reg		PCI register number
+ * @ret start		BAR start address
+ *
+ * Reads the specified PCI base address register, and returns the
+ * address portion of the BAR (i.e. without the flags).
+ *
+ * If the address exceeds the size of an unsigned long (i.e. if a
+ * 64-bit BAR has a non-zero high dword on a 32-bit machine), the
+ * return value will be zero.
+ */
+static unsigned long pci_bar_start ( struct grub_pci_device *dev, unsigned int reg )
+{
+  unsigned long bar;
+
+  bar = pci_bar (dev, reg);
+  if ( bar & GRUB_PCI_ADDR_SPACE_IO )
+    {
+      return ( bar & ~GRUB_PCI_ADDR_IO_MASK );
+    }
+  else
+    {
+      return ( bar & ~GRUB_PCI_ADDR_MEM_MASK );
+    }
+}
+
+
 /* PCI iteration function... */
 static int
 grub_xhci_pci_iter (grub_pci_device_t dev,
                     grub_pci_id_t pciid __attribute__ ((unused)),
 		    void *data __attribute__ ((unused)))
 {
+  int err;
   struct grub_xhci *xhci;
-  //grub_uint8_t caplen;
-  //grub_uint32_t hccparams1;
   grub_uint32_t class_code;
+  grub_uint32_t addr;
+  grub_uint32_t base;
+  grub_uint32_t base_h;
 
   /* Exit if not USB3.0 xHCI controller */
-  class_code = pci_config_read (dev, GRUB_PCI_REG_CLASS);
-  if ((class_code >> 8) != 0x0c0330)
+  class_code = pci_config_read (dev, GRUB_PCI_REG_CLASS) >> 8;
+  if (class_code != 0x0c0330)
     return 0;
 
   grub_dprintf ("xhci", "found xHCI controller on bus %d device %d "
       "function %d: device|vendor ID 0x%08x\n", dev.bus, dev.device,
       dev.function, pciid);
+
+  /* Determine xHCI MMIO registers base address */
+  addr = grub_pci_make_address (dev, GRUB_PCI_REG_ADDRESS_REG0);
+  base = grub_pci_read (addr);
+  addr = grub_pci_make_address (dev, GRUB_PCI_REG_ADDRESS_REG1);
+  base_h = grub_pci_read (addr);
+  /* Stop if registers are mapped above 4G - GRUB does not currently
+   * work with registers mapped above 4G */
+  if (((base & GRUB_PCI_ADDR_MEM_TYPE_MASK) != GRUB_PCI_ADDR_MEM_TYPE_32)
+      && (base_h != 0))
+    {
+      grub_dprintf ("xhci", "registers above 4G are not supported\n");
+      return 0;
+    }
+  base &= GRUB_PCI_ADDR_MEM_MASK;
+  if (!base)
+    {
+      grub_dprintf ("xhci", "xHCI is not mapped (broken PC firmware)\n");
+      return 0;
+    }
+
+  /* Set bus master - needed for coreboot, VMware, broken BIOSes etc. */
+  addr = grub_pci_make_address (dev, GRUB_PCI_REG_COMMAND);
+  grub_pci_write_word(addr,
+    		  GRUB_PCI_COMMAND_MEM_ENABLED
+    		  | GRUB_PCI_COMMAND_BUS_MASTER
+    		  | grub_pci_read_word(addr));
+  
+  grub_dprintf ("ehci", "xHCI 32-bit MMIO regs OK\n");
 
   xhci = grub_malloc (sizeof (*xhci));
   if (!xhci)
@@ -1341,7 +1533,29 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
       return GRUB_USB_ERR_INTERNAL;
     }
 
-  /* BUild list of xHCI controllers */
+  xhci->regs = grub_pci_device_map_range (dev,
+      (base & GRUB_XHCI_ADDR_MEM_MASK),
+      0x100); /* PCI config space is 256 bytes */
+
+  grub_dprintf ("xhci", "BAR: %08x\n",
+		(base & GRUB_XHCI_ADDR_MEM_MASK));
+
+  /* only 32-bit support (don't read 2nd BAR) */
+  //xhci->regs = (void*)(pci_config_read (dev, GRUB_PCI_REG_ADDRESS_REG0) & ~4);
+  //base = pci_config_read (dev, GRUB_PCI_REG_ADDRESS_REG0) & ~4;
+  //xhci->regs = grub_pci_device_map_range (dev,
+  //                (base & GRUB_XHCI_ADDR_MEM_MASK),
+  //                0x100); /* PCI config space is 256 bytes */
+  grub_dprintf ("xhci", "BAR0 value %08lx\n", (unsigned long int)xhci->regs);
+
+  err = grub_xhci_init (xhci, xhci->regs);
+  if (err)
+  {
+    grub_free(xhci);
+    return err;
+  }
+
+  /* Build list of xHCI controllers */
   xhci->next = xhci_list;
   xhci_list = xhci;
 
