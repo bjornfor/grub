@@ -335,7 +335,8 @@ grub_usb_controller_dev_register (grub_usb_controller_dev_t usb)
 		speed = hub->controller->dev->detect_dev (hub->controller, portno,
 							  &changed);
       
-                grub_dprintf ("usb", "detect_dev returned speed=%d\n", speed);
+                grub_dprintf ("usb", "detect_dev (portno=%d, *changed=%d) returned speed=%d\n",
+                    portno, changed, speed);
 		if (hub->ports[portno].state == PORT_STATE_NORMAL
 		    && speed != GRUB_USB_SPEED_NONE)
 		  {
