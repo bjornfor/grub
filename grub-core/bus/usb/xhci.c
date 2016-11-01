@@ -1095,7 +1095,7 @@ grub_xhci_dump_cap(struct grub_xhci *xhci)
   grub_dprintf ("xhci", "CAPLENGTH=%d\n", val & 0xff);
 
   val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCIVERSION);
-  grub_dprintf ("xhci", "HCIVERSION=0x%08x\n", val & 0xffff);
+  grub_dprintf ("xhci", "HCIVERSION=0x%04x\n", val & 0xffff);
 
   val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS1);
   grub_dprintf ("xhci", "HCSPARAMS1=0x%08x\n", val);
