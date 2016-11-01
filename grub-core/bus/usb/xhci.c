@@ -465,7 +465,7 @@ grub_xhci_port_setbits (struct grub_xhci *xhci, grub_uint32_t port,
 
 
 #endif
-  
+
 static grub_err_t
 grub_xhci_restore_hw (void)
 {
@@ -1257,7 +1257,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *regs)
   if (xecp)
     {
       addr = grub_pci_make_address (dev, 0);
-      addr += sizeof(uint32_t) * 
+      addr += sizeof(uint32_t) *
       hccparams1 = grub_pci_read(addr);
     }
 
@@ -1523,7 +1523,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
     		  GRUB_PCI_COMMAND_MEM_ENABLED
     		  | GRUB_PCI_COMMAND_BUS_MASTER
     		  | grub_pci_read_word(addr));
-  
+
   grub_dprintf ("ehci", "xHCI 32-bit MMIO regs OK\n");
 
   xhci = grub_malloc (sizeof (*xhci));
@@ -1572,7 +1572,7 @@ static struct grub_usb_controller_dev usb_controller_dev = {
   .portstatus = grub_xhci_portstatus,
   .detect_dev = grub_xhci_detect_dev,
   /* estimated max. count of TDs for one bulk transfer */
-  .max_bulk_tds = 16, //GRUB_EHCI_N_TD * 3 / 4 
+  .max_bulk_tds = 16, //GRUB_EHCI_N_TD * 3 / 4
 };
 
 GRUB_MOD_INIT (xhci)
