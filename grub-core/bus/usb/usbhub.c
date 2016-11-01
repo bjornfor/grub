@@ -67,6 +67,7 @@ grub_usb_hub_add_dev (grub_usb_controller_t controller,
   dev->split_hubaddr = split_hubaddr;
 
   err = grub_usb_device_initialize (dev);
+  grub_dprintf ("usb", "grub_usb_hub_add_dev err=%d\n", err);
   if (err)
     {
       grub_free (dev);
@@ -217,6 +218,7 @@ attach_root_port (struct grub_usb_hub *hub, int portno,
   grub_millisleep (10);
 
   grub_boot_time ("Port enabled");
+  grub_dprintf ("usb", "Port enabled\n");
 
   /* Enable the port and create a device.  */
   /* High speed device needs not transaction translation
@@ -237,6 +239,7 @@ attach_root_port (struct grub_usb_hub *hub, int portno,
     grub_usb_add_hub (dev);
 
   grub_boot_time ("Attached root port");
+  grub_dprintf ("usb", "Attached root port\n");
 }
 
 /* Iterate over all controllers found by the driver.  */
@@ -249,6 +252,7 @@ grub_usb_controller_dev_register_iter (grub_usb_controller_t controller, void *d
   controller->dev = usb;
 
   grub_boot_time ("Registering USB root hub");
+  grub_dprintf ("usb", "Registering USB root hub\n");
 
   hub = grub_malloc (sizeof (*hub));
   if (!hub)
@@ -316,6 +320,8 @@ grub_usb_controller_dev_register (grub_usb_controller_dev_t usb)
       for (hub = hubs; hub; hub = hub->next)
 	if (hub->controller->dev == usb)
 	  {
+            grub_dprintf ("usb", "found usb device, now iterate ports\n");
+
 	    /* Wait for completion of insertion and stable power (USB spec.)
 	     * Should be at least 100ms, some devices requires more...
 	     * There is also another thing - some devices have worse contacts
@@ -329,6 +335,7 @@ grub_usb_controller_dev_register (grub_usb_controller_dev_t usb)
 		speed = hub->controller->dev->detect_dev (hub->controller, portno,
 							  &changed);
       
+                grub_dprintf ("usb", "detect_dev returned speed=%d\n", speed);
 		if (hub->ports[portno].state == PORT_STATE_NORMAL
 		    && speed != GRUB_USB_SPEED_NONE)
 		  {
@@ -355,8 +362,8 @@ grub_usb_controller_dev_register (grub_usb_controller_dev_t usb)
 		    hub->ports[portno].state = PORT_STATE_STABLE_POWER;
 		    grub_boot_time ("Got stable power wait for port %p:%d",
 				    usb, portno);
-		    grub_dprintf ("usb", "Got stable power wait for port %p:%d\n",
-				    usb, portno);
+                    grub_dprintf ("usb", "Got stable power wait for port %p:%d\n",
+                                   usb, portno);
 		    continue_waiting--;
 		    continue;
 		  }
@@ -375,6 +382,7 @@ grub_usb_controller_dev_register (grub_usb_controller_dev_t usb)
     }
 
   grub_boot_time ("After the stable power wait on USB root");
+  grub_dprintf ("usb", "After the stable power wait on USB root\n");
 
   for (hub = hubs; hub; hub = hub->next)
     if (hub->controller->dev == usb)
@@ -389,6 +397,7 @@ grub_usb_controller_dev_register (grub_usb_controller_dev_t usb)
 	  }
 
   grub_boot_time ("USB root hub registered");
+  grub_dprintf ("usb", "USB root hub registered\n");
 }
 
 static void detach_device (grub_usb_device_t dev);
@@ -433,6 +442,7 @@ wait_power_nonroot_hub (grub_usb_device_t dev)
 	grub_uint64_t tm;
 	grub_uint32_t current_status = 0;
 
+        grub_dprintf ("usb", "wait_power_nonroot_hub\n");
 	/* Get the port status.  */
 	err = grub_usb_control_msg (dev, (GRUB_USB_REQTYPE_IN
 					  | GRUB_USB_REQTYPE_CLASS
@@ -680,10 +690,9 @@ grub_usb_poll_devices (int wait_for_completion)
       /* No, it should be never changed, it should be constant. */
       for (i = 0; i < hub->nports; i++)
 	{
-          /*grub_dprintf("usb", "grub_usb_poll_devices hub=0x%08x port=%d\n",
+          grub_printf("\n");
+          grub_dprintf("usb", "grub_usb_poll_devices hub=0x%08x port=%d\n",
               (unsigned int)hub, i);
-          grub_millisleep(1000);
-          */
 	  grub_usb_speed_t speed = GRUB_USB_SPEED_NONE;
 	  int changed = 0;
 

@@ -889,11 +889,31 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   (void)xhci;
   (void)line_state;
   (void)status;
+  static int state;
 
-  //grub_dprintf ("xhci", "grub_xhci_detect_dev enter\n");
-  grub_millisleep(2);
-  *changed = 0;
-  return GRUB_USB_SPEED_HIGH;
+  grub_dprintf ("xhci", "grub_xhci_detect_dev enter\n");
+  switch (state) {
+    case 0:
+      state = 0;
+      *changed = 1;
+      return GRUB_USB_SPEED_SUPER;
+
+    case 1:
+      state = 2;
+      *changed = 0;
+      return GRUB_USB_SPEED_NONE;
+
+    case 2:
+      state = 0;
+      *changed = 1;
+      return GRUB_USB_SPEED_SUPER;
+      break;
+
+    default:
+      break;
+  }
+
+  return GRUB_USB_SPEED_NONE;
 
 #if 0
   status = grub_xhci_port_read (xhci, port);
@@ -1054,11 +1074,11 @@ grub_xhci_hubports (grub_usb_controller_t dev)
   (void)dev;
   //struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
   //grub_uint32_t hcsparams1;
-  unsigned int nports = 1;
+  unsigned int nports = 0;
 
   //hcsparams1 = grub_xhci_cap_read32 (xhci, GRUB_XHCI_CAP_HCSPARAMS1);
   //nports = ((hcsparams1 >> 24) & 0xff);
-  //grub_dprintf ("xhci", "root hub ports=%d\n", nports);
+  grub_dprintf ("xhci", "grub_xhci_hubports nports=%d\n", nports);
   return nports;
 }
 
