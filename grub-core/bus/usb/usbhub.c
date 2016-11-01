@@ -320,7 +320,7 @@ grub_usb_controller_dev_register (grub_usb_controller_dev_t usb)
       for (hub = hubs; hub; hub = hub->next)
 	if (hub->controller->dev == usb)
 	  {
-            grub_dprintf ("usb", "found usb device, now iterate ports\n");
+            //grub_dprintf ("usb", "found usb device, now iterate ports\n");
 
 	    /* Wait for completion of insertion and stable power (USB spec.)
 	     * Should be at least 100ms, some devices requires more...

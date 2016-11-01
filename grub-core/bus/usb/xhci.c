@@ -1129,7 +1129,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *regs)
   //grub_uint32_t hcsparams2;
   //grub_uint32_t hccparams1;
   //grub_uint32_t pagesize;
-  unsigned int caplength;
+  unsigned int off;
   //unsigned int rtsoff;
   //unsigned int dboff;
 
@@ -1139,11 +1139,15 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *regs)
 
   (void)xhci;
   (void)regs;
-  (void)caplength;
+  (void)off;
 
   /* Locate capability, operational, runtime, and doorbell registers */
   xhci->cap = regs;
-  //caplength = mmio_read (xhci->cap + XHCI_CAP_CAPLENGTH);
+
+  xhci->oper = xhci->cap + mmio_read (xhci->cap + GRUB_XHCI_CAP_CAPLENGTH);
+  xhci->runtime = xhci->cap + mmio_read (xhci->cap + GRUB_XHCI_CAP_RTSOFF);
+  xhci->doorbell = xhci->cap + mmio_read (xhci->cap + GRUB_XHCI_CAP_DBOFF);
+
   grub_xhci_dump_cap(xhci);
 
 #if 0
