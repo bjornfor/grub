@@ -1542,16 +1542,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
       (base & GRUB_XHCI_ADDR_MEM_MASK),
       0x100); /* PCI config space is 256 bytes */
 
-  grub_dprintf ("xhci", "BAR: 0x%08x\n",
-		(base & GRUB_XHCI_ADDR_MEM_MASK));
-
-  /* only 32-bit support (don't read 2nd BAR) */
-  //xhci->regs = (void*)(pci_config_read (dev, GRUB_PCI_REG_ADDRESS_REG0) & ~4);
-  //base = pci_config_read (dev, GRUB_PCI_REG_ADDRESS_REG0) & ~4;
-  //xhci->regs = grub_pci_device_map_range (dev,
-  //                (base & GRUB_XHCI_ADDR_MEM_MASK),
-  //                0x100); /* PCI config space is 256 bytes */
-  grub_dprintf ("xhci", "BAR0 value 0x%08lx\n", (unsigned long int)xhci->regs);
+  grub_dprintf ("xhci", "BAR0: 0x%08x\n", (unsigned int)xhci->regs);
 
   err = grub_xhci_init (xhci, xhci->regs);
   if (err)
