@@ -313,8 +313,7 @@ static struct grub_xhci *xhci_list;
 static inline grub_uint32_t
 grub_xhci_cap_read32 (struct grub_xhci *xhci, grub_uint32_t off)
 {
-  return
-    grub_le_to_cpu32 (*((volatile grub_uint32_t *) xhci->cap +
+  return grub_le_to_cpu32 (*((volatile grub_uint32_t *) xhci->cap +
 		       (off / sizeof (grub_uint32_t))));
 }
 
