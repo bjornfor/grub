@@ -1493,6 +1493,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
   grub_uint32_t base_h;
 
   /* Exit if not USB3.0 xHCI controller */
+  /* TODO: endianness (PCI regs are little-endian) */
   class_code = pci_config_read (dev, GRUB_PCI_REG_CLASS) >> 8;
   if (class_code != 0x0c0330)
     return 0;
