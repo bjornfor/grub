@@ -369,6 +369,14 @@ struct xhci_run_regs {
   const volatile grub_uint32_t microframe_index;
 };
 
+/** Port Register Set */
+//struct xhci_port_reg_set {
+//  volatile grub_uint32_t portsc;
+//  volatile grub_uint32_t portpmsc;
+//  volatile grub_uint32_t portli;
+//  volatile grub_uint32_t porthlpmc;
+//};
+
 #define MAX_DOORBELL_ENTRIES 256
 
 /** Doorbell array registers */
@@ -456,15 +464,24 @@ mmio_write32 (volatile grub_uint32_t *addr, grub_uint32_t val)
   *addr = grub_cpu_to_le32 (val);
 }
 
+enum xhci_portrs_type
+{
+  PORTSC = 0,
+  PORTPMSC = 4,
+  PORTLI = 8,
+  PORTHLPMC = 12,
+};
+
+/* Read Port Register Set n of given type */
 static inline grub_uint32_t
-xhci_read_portsc(struct grub_xhci *xhci, unsigned int port)
+xhci_read_portrs(struct grub_xhci *xhci, unsigned int port, enum xhci_portrs_type type)
 {
   grub_uint8_t *addr;
 
   if (port > xhci->max_ports)
     return ~0;
 
-  addr = (grub_uint8_t*)xhci->oper_regs + 0x400 + (0x10 * (port - 1));
+  addr = (grub_uint8_t*)xhci->oper_regs + 0x400 + (0x10 * (port - 1)) + type;
   return mmio_read32 ((grub_uint32_t *)addr);
 }
 
@@ -791,6 +808,7 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
 {
   struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
   grub_uint32_t status, line_state;
+  grub_uint32_t is_connected;
 
   (void)port;
   (void)changed;
@@ -799,7 +817,17 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   (void)status;
   static int state;
 
-  grub_dprintf ("xhci", "grub_xhci_detect_dev enter\n");
+  grub_dprintf ("xhci", "grub_xhci_detect_dev port=%d\n", port);
+
+  is_connected = xhci_read_portrs (xhci, port, PORTSC) & 1;
+  if (is_connected)
+  {
+    grub_dprintf ("xhci", "IS CONNECTED!!!!\n");
+    grub_millisleep (10000);
+  }
+
+  grub_millisleep (1000);
+
   switch (state) {
     case 0:
       state = 0;
@@ -988,8 +1016,8 @@ grub_xhci_hubports (grub_usb_controller_t dev)
   nports = (hcsparams1 >> 24) & 0xff;
   grub_dprintf ("xhci", "grub_xhci_hubports nports=%d\n", nports);
 
-  grub_dprintf ("xhci", "grub_xhci_hubports force nports=0 (prevent hang)\n");
-  nports = 0;
+  //grub_dprintf ("xhci", "grub_xhci_hubports force nports=0 (prevent hang)\n");
+  //nports = 0;
   return nports;
 }
 
