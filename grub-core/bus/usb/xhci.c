@@ -1246,10 +1246,10 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
     ((grub_uint8_t *)xhci->cap_regs + mmio_read8 (&xhci->cap_regs->caplength));
 
   xhci->db_regs = (struct xhci_doorbell_regs *)
-    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK) / 4);
+    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK));
 
   xhci->run_regs = (struct xhci_run_regs *)
-    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK) / 32);
+    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK));
 
   grub_xhci_dump_cap(xhci);
 
