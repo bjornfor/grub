@@ -461,7 +461,8 @@ xhci_read_portsc(struct grub_xhci *xhci, unsigned int port)
 {
   grub_uint8_t *addr;
 
-  /* assert (xhci->max_port < port); */
+  if (port > xhci->max_ports)
+    return ~0;
 
   addr = (grub_uint8_t*)xhci->oper_regs + 0x400 + (0x10 * (port - 1));
   return mmio_read32 ((grub_uint32_t *)addr);
