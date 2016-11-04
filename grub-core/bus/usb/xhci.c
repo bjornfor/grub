@@ -357,9 +357,12 @@ struct xhci_oper_regs {
 
 struct grub_xhci
 {
-  struct grub_xhci *next;
   volatile struct xhci_cap_regs *cap_regs;
   volatile struct xhci_oper_regs *oper_regs;
+  grub_uint32_t max_device_slots;
+
+  /* linked list */
+  struct grub_xhci *next;
 
 
   /* DEPRECATED STUFF BELOW */
@@ -924,9 +927,11 @@ grub_xhci_hubports (grub_usb_controller_t dev)
   unsigned int nports = 0;
 
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
-  nports = ((hcsparams1 >> 24) & 0xff);
-  xhci->slots = ((hcsparams1 >> 24) & 0xff);
+  xhci->max_device_slots = hcsparams1 & 0xff;
+  nports = (hcsparams1 >> 24) & 0xff;
   grub_dprintf ("xhci", "grub_xhci_hubports nports=%d\n", nports);
+
+  grub_dprintf ("xhci", "grub_xhci_hubports force nports=0 (prevent hang)\n");
   nports = 0;
 
   ///* Read structural parameters 1 */
