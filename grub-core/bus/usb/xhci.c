@@ -479,7 +479,10 @@ xhci_read_portrs(struct grub_xhci *xhci, unsigned int port, enum xhci_portrs_typ
   grub_uint8_t *addr;
 
   if (port > xhci->max_ports)
+  {
+    grub_dprintf ("xhci", "too big port number\n");
     return ~0;
+  }
 
   addr = (grub_uint8_t*)xhci->oper_regs + 0x400 + (0x10 * (port - 1)) + type;
   return mmio_read32 ((grub_uint32_t *)addr);
@@ -818,12 +821,14 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   static int state;
 
   grub_dprintf ("xhci", "grub_xhci_detect_dev port=%d\n", port);
+  grub_dprintf ("xhci", "PORTSC(port=%d): 0x%08x\n",
+      port, xhci_read_portrs (xhci, port, PORTSC));
 
   is_connected = xhci_read_portrs (xhci, port, PORTSC) & 1;
   if (is_connected)
   {
-    grub_dprintf ("xhci", "IS CONNECTED!!!!\n");
-    grub_millisleep (10000);
+    //grub_dprintf ("xhci", "IS CONNECTED!!!!\n");
+    //grub_millisleep (10000);
   }
 
   grub_millisleep (1000);
@@ -1013,7 +1018,8 @@ grub_xhci_hubports (grub_usb_controller_t dev)
 
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
   xhci->max_device_slots = hcsparams1 & 0xff;
-  nports = (hcsparams1 >> 24) & 0xff;
+  xhci->max_ports = (hcsparams1 >> 24) & 0xff;
+  nports = xhci->max_ports;
   grub_dprintf ("xhci", "grub_xhci_hubports nports=%d\n", nports);
 
   //grub_dprintf ("xhci", "grub_xhci_hubports force nports=0 (prevent hang)\n");
