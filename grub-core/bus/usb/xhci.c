@@ -1,9 +1,4 @@
-/*
- * xhci.h - xHCI driver for GRUB
- *
- * [spec] http://www.intel.com/content/www/us/en/io/universal-serial-bus/extensible-host-controler-interface-usb-xhci.html
- */
-
+/* xhci.h - xHCI driver */
 /*
  *  GRUB  --  GRand Unified Bootloader
  *  Copyright (C) 2016 Hiddn Security AS
@@ -22,13 +17,19 @@
  *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*
+ * Simple xHCI driver for GRUB. No interrupts, just polling. No 64-bit
+ * addressing support.
+ *
+ * [spec] http://www.intel.com/content/www/us/en/io/universal-serial-bus/extensible-host-controler-interface-usb-xhci.html
+ */
+
 #include <grub/dl.h>
 #include <grub/mm.h>
 #include <grub/usb.h>
 #include <grub/usbtrans.h>
 #include <grub/misc.h>
 #include <grub/pci.h>
-//#include <grub/pciutils.h> // doesn't work
 #include <grub/cpu/pci.h>
 #include <grub/cpu/io.h>
 #include <grub/time.h>
@@ -314,6 +315,12 @@ pci_config_read32 (grub_pci_device_t dev, unsigned int reg)
 /** Number of registers per port */
 #define NUM_PORT_REGS 4
 
+/** bit 1:0 is Rsvd */
+#define DBOFF_MASK (~0x3)
+
+/** bit 4:0 is Rsvd */
+#define RTSOFF_MASK (~0x1f)
+
 /** Capability registers */
 struct xhci_cap_regs {
   /* These are read only, so we don't need volatile */
@@ -362,6 +369,13 @@ struct xhci_run_regs {
   const volatile grub_uint32_t microframe_index;
 };
 
+#define MAX_DOORBELL_ENTRIES 256
+
+/** Doorbell array registers */
+struct xhci_doorbell_regs {
+  volatile grub_uint32_t doorbell[MAX_DOORBELL_ENTRIES];
+};
+
 struct grub_xhci
 {
   volatile struct xhci_cap_regs *cap_regs;
@@ -372,6 +386,8 @@ struct grub_xhci
   grub_uint8_t max_device_slots;
   /* valid range 1-255 */
   grub_uint8_t max_ports;
+
+  volatile struct xhci_doorbell_regs *db_regs;
 
   /* linked list */
   struct grub_xhci *next;
@@ -384,7 +400,7 @@ struct grub_xhci
   volatile grub_uint8_t *cap;	   /* Capability registers */
   volatile grub_uint8_t *oper;	   /* Operational registers */
   volatile grub_uint8_t *runtime;  /* Runtime registers */
-  volatile grub_uint8_t *doorbell; /* Doorbell Array */
+  //volatile grub_uint8_t *doorbell; /* Doorbell Array */
 
   unsigned int slots;  /* number of device slots */
   unsigned int ports;  /* number of ports */
@@ -1202,10 +1218,10 @@ grub_xhci_dump_cap(struct grub_xhci *xhci)
       mmio_read32 (&xhci->cap_regs->hccparams1));
 
   grub_dprintf ("xhci", "DBOFF=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->dboff));
+      mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK);
 
   grub_dprintf ("xhci", "RTSOFF=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->rtsoff));
+      mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK);
 
   grub_dprintf ("xhci", "HCCPARAMS2=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hccparams2));
@@ -1229,6 +1245,12 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
   xhci->cap_regs = mmio_base_addr;
   xhci->oper_regs = (struct xhci_oper_regs *)
     ((grub_uint8_t *)xhci->cap_regs + mmio_read8 (&xhci->cap_regs->caplength));
+
+  xhci->db_regs = (struct xhci_doorbell_regs *)
+    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK) / 4);
+
+  xhci->run_regs = (struct xhci_run_regs *)
+    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK) / 32);
 
   grub_xhci_dump_cap(xhci);
 
