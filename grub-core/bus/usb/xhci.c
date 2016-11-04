@@ -286,6 +286,31 @@ pci_config_read (grub_pci_device_t dev, unsigned int reg)
   return grub_pci_read (addr);
 }
 
+
+static grub_uint8_t
+pci_config_read8 (grub_pci_device_t dev, unsigned int reg)
+{
+  grub_pci_address_t addr;
+  addr = grub_pci_make_address (dev, reg);
+  return grub_pci_read_byte (addr);
+}
+
+static grub_uint16_t
+pci_config_read16 (grub_pci_device_t dev, unsigned int reg)
+{
+  grub_pci_address_t addr;
+  addr = grub_pci_make_address (dev, reg);
+  return grub_le_to_cpu16 (grub_pci_read_word (addr) );
+}
+
+static grub_uint32_t
+pci_config_read32 (grub_pci_device_t dev, unsigned int reg)
+{
+  grub_pci_address_t addr;
+  addr = grub_pci_make_address (dev, reg);
+  return grub_le_to_cpu32 (grub_pci_read (addr) );
+}
+
 struct grub_xhci
 {
   volatile void *regs;     /* Start of registers (same addr as capability) */
@@ -317,8 +342,20 @@ grub_xhci_cap_read32 (struct grub_xhci *xhci, grub_uint32_t off)
 		       (off / sizeof (grub_uint32_t))));
 }
 
+static inline grub_uint8_t
+mmio_read8 (volatile void *addr)
+{
+  return (*((volatile grub_uint8_t *) addr));
+}
+
+static inline grub_uint16_t
+mmio_read16 (volatile void *addr)
+{
+  return grub_le_to_cpu16 (*((volatile grub_uint16_t *) addr));
+}
+
 static inline grub_uint32_t
-mmio_read (volatile void *addr)
+mmio_read32 (volatile void *addr)
 {
   return grub_le_to_cpu32 (*((volatile grub_uint32_t *) addr));
 }
@@ -838,7 +875,7 @@ grub_xhci_hubports (grub_usb_controller_t dev)
   grub_uint32_t hcsparams1;
   unsigned int nports = 0;
 
-  hcsparams1 = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS1);
+  hcsparams1 = mmio_read32 (xhci->cap + GRUB_XHCI_CAP_HCSPARAMS1);
   nports = ((hcsparams1 >> 24) & 0xff);
   xhci->slots = ((hcsparams1 >> 24) & 0xff);
   grub_dprintf ("xhci", "grub_xhci_hubports nports=%d\n", nports);
@@ -1089,32 +1126,33 @@ static int
 grub_xhci_dump_cap(struct grub_xhci *xhci)
 {
   grub_uint32_t val;
+  grub_uint16_t val16;
 
-  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_CAPLENGTH);
+  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_CAPLENGTH);
   grub_dprintf ("xhci", "CAPLENGTH=%d\n", val & 0xff);
 
-  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCIVERSION);
-  grub_dprintf ("xhci", "HCIVERSION=0x%04x\n", val & 0xffff);
+  val16 = mmio_read16(xhci->cap + GRUB_XHCI_CAP_HCIVERSION);
+  grub_dprintf ("xhci", "HCIVERSION=0x%04x\n", val16);
 
-  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS1);
+  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS1);
   grub_dprintf ("xhci", "HCSPARAMS1=0x%08x\n", val);
 
-  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS2);
+  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS2);
   grub_dprintf ("xhci", "HCSPARAMS2=0x%08x\n", val);
 
-  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS3);
+  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS3);
   grub_dprintf ("xhci", "HCSPARAMS3=0x%08x\n", val);
 
-  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCCPARAMS1);
+  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCCPARAMS1);
   grub_dprintf ("xhci", "HCCPARAMS1=0x%08x\n", val);
 
-  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_DBOFF);
+  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_DBOFF);
   grub_dprintf ("xhci", "DBOFF=0x%08x\n", val);
 
-  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_RTSOFF);
+  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_RTSOFF);
   grub_dprintf ("xhci", "RTSOFF=0x%08x\n", val);
 
-  val = mmio_read(xhci->cap + GRUB_XHCI_CAP_HCCPARAMS2);
+  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCCPARAMS2);
   grub_dprintf ("xhci", "HCCPARAMS2=0x%08x\n", val);
 
   return 0;
@@ -1143,9 +1181,9 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *regs)
   /* Locate capability, operational, runtime, and doorbell registers */
   xhci->cap = regs;
 
-  xhci->oper = xhci->cap + mmio_read (xhci->cap + GRUB_XHCI_CAP_CAPLENGTH);
-  xhci->runtime = xhci->cap + mmio_read (xhci->cap + GRUB_XHCI_CAP_RTSOFF);
-  xhci->doorbell = xhci->cap + mmio_read (xhci->cap + GRUB_XHCI_CAP_DBOFF);
+  xhci->oper = xhci->cap + mmio_read32 (xhci->cap + GRUB_XHCI_CAP_CAPLENGTH);
+  xhci->runtime = xhci->cap + mmio_read32 (xhci->cap + GRUB_XHCI_CAP_RTSOFF);
+  xhci->doorbell = xhci->cap + mmio_read32 (xhci->cap + GRUB_XHCI_CAP_DBOFF);
 
   grub_xhci_dump_cap(xhci);
 
