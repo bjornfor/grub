@@ -438,6 +438,35 @@ mmio_read32 (const volatile grub_uint32_t *addr)
   return grub_le_to_cpu32 (*addr);
 }
 
+static inline void
+mmio_write8 (volatile grub_uint8_t *addr, grub_uint8_t val)
+{
+  *addr = val;
+}
+
+static inline void
+mmio_write16 (volatile grub_uint16_t *addr, grub_uint16_t val)
+{
+  *addr = grub_cpu_to_le16 (val);
+}
+
+static inline void
+mmio_write32 (volatile grub_uint32_t *addr, grub_uint32_t val)
+{
+  *addr = grub_cpu_to_le32 (val);
+}
+
+static inline grub_uint32_t
+xhci_read_portsc(struct grub_xhci *xhci, unsigned int port)
+{
+  grub_uint8_t *addr;
+
+  /* assert (xhci->max_port < port); */
+
+  addr = (grub_uint8_t*)xhci->oper_regs + 0x400 + (0x10 * (port - 1));
+  return mmio_read32 ((grub_uint32_t *)addr);
+}
+
 /* Halt if xHCI HC not halted */
 static grub_usb_err_t
 grub_xhci_halt (struct grub_xhci *xhci)
@@ -1229,6 +1258,36 @@ grub_xhci_dump_cap(struct grub_xhci *xhci)
 }
 
 static int
+grub_xhci_dump_oper(struct grub_xhci *xhci)
+{
+  grub_uint32_t val32;
+
+  grub_dprintf ("xhci", "USBCMD=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->usbcmd));
+
+  grub_dprintf ("xhci", "USBSTS=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->usbsts));
+
+  val32 = mmio_read32 (&xhci->oper_regs->pagesize);
+  grub_dprintf ("xhci", "PAGESIZE=%d (%d bytes)\n",
+      val32, 1 << (val32 + 12));
+
+  grub_dprintf ("xhci", "DNCTRL=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->dnctrl));
+
+  grub_dprintf ("xhci", "CRCR=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->crcr));
+
+  grub_dprintf ("xhci", "DCBAAP=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->dcbaap));
+
+  grub_dprintf ("xhci", "CONFIG=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->config));
+
+  return 0;
+}
+
+static int
 grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
 {
   //grub_int32_t hcsparams1;
@@ -1252,6 +1311,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
     ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK));
 
   grub_xhci_dump_cap(xhci);
+  grub_xhci_dump_oper(xhci);
 
 #if 0
   rtsoff = readl ( xhci->cap + XHCI_CAP_RTSOFF );
