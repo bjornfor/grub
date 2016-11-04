@@ -357,16 +357,19 @@ struct xhci_oper_regs {
 
 struct grub_xhci
 {
-  volatile void *regs;     /* Start of registers (same addr as capability) */
+  struct grub_xhci *next;
+  volatile struct xhci_cap_regs *cap_regs;
+  volatile struct xhci_oper_regs *oper_regs;
 
+
+  /* DEPRECATED STUFF BELOW */
+
+  volatile void *regs;     /* Start of registers (same addr as capability) */
   /* Pointers to specific register areas */
   volatile grub_uint8_t *cap;	   /* Capability registers */
   volatile grub_uint8_t *oper;	   /* Operational registers */
   volatile grub_uint8_t *runtime;  /* Runtime registers */
   volatile grub_uint8_t *doorbell; /* Doorbell Array */
-
-  volatile struct xhci_cap_regs *cap_regs;
-  volatile struct xhci_oper_regs *oper_regs;
 
   unsigned int slots;  /* number of device slots */
   unsigned int ports;  /* number of ports */
@@ -375,8 +378,6 @@ struct grub_xhci
   volatile grub_uint32_t *iobase_cap;	   /* Capability registers */
   volatile grub_uint32_t *iobase_oper;	   /* Operational registers */
   //unsigned int reset;
-
-  struct grub_xhci *next;
 };
 
 static struct grub_xhci *xhci_list;
