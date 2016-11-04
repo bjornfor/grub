@@ -311,15 +311,62 @@ pci_config_read32 (grub_pci_device_t dev, unsigned int reg)
   return grub_le_to_cpu32 (grub_pci_read (addr) );
 }
 
+/** Number of registers per port */
+#define NUM_PORT_REGS 4
+
+/* These are read only, so we don't need volatile */
+struct xhci_cap_regs {
+  const grub_uint8_t caplength;
+  const grub_uint8_t rsvd1;
+  const grub_uint16_t hciversion;
+  const grub_uint32_t hcsparams1;
+  const grub_uint32_t hcsparams2;
+  const grub_uint32_t hcsparams3;
+  const grub_uint32_t hccparams1;
+  const grub_uint32_t dboff;
+  const grub_uint32_t rtsoff;
+  const grub_uint32_t hccparams2;
+  /* Reserved up to (caplength - 0x20) */
+};
+
+struct xhci_oper_regs {
+  /** USB Command */
+  volatile grub_uint32_t *usbcmd;
+  /** USB Status */
+  volatile grub_uint32_t *usbsts;
+  /* Page Size */
+  volatile grub_uint32_t *pagesize;
+  /** Reserved */
+  grub_uint32_t *rsvdz1;
+  grub_uint32_t *rsvdz2;
+  /** Device Notification Control */
+  volatile grub_uint32_t *dnctrl;
+  /** Command Ring Control */
+  volatile grub_uint32_t *crcr;
+  /** Reserved 0x20-0x2F */
+  grub_uint32_t *rsvdz3[4];
+  /** Device Context Base Address Array Pointer */
+  volatile grub_uint32_t *dcbaap;
+  /** Configure */
+  volatile grub_uint32_t *config;
+  /** Reserved 0x3c-0x3ff */
+  grub_uint32_t *rsvdz4[241];
+  /** Port Register Set 1-MaxPorts (0x400-0x13ff) */
+  volatile grub_uint32_t *reserved[NUM_PORT_REGS * 245];
+};
+
 struct grub_xhci
 {
   volatile void *regs;     /* Start of registers (same addr as capability) */
 
   /* Pointers to specific register areas */
-  volatile grub_uint32_t *cap;	   /* Capability registers */
-  volatile grub_uint32_t *oper;	   /* Operational registers */
-  volatile grub_uint32_t *runtime;  /* Runtime registers */
-  volatile grub_uint32_t *doorbell; /* Doorbell Array */
+  volatile grub_uint8_t *cap;	   /* Capability registers */
+  volatile grub_uint8_t *oper;	   /* Operational registers */
+  volatile grub_uint8_t *runtime;  /* Runtime registers */
+  volatile grub_uint8_t *doorbell; /* Doorbell Array */
+
+  volatile struct xhci_cap_regs *cap_regs;
+  volatile struct xhci_oper_regs *oper_regs;
 
   unsigned int slots;  /* number of device slots */
   unsigned int ports;  /* number of ports */
@@ -343,21 +390,21 @@ grub_xhci_cap_read32 (struct grub_xhci *xhci, grub_uint32_t off)
 }
 
 static inline grub_uint8_t
-mmio_read8 (volatile void *addr)
+mmio_read8 (const volatile grub_uint8_t *addr)
 {
-  return (*((volatile grub_uint8_t *) addr));
+  return *addr;
 }
 
 static inline grub_uint16_t
-mmio_read16 (volatile void *addr)
+mmio_read16 (const volatile grub_uint16_t *addr)
 {
-  return grub_le_to_cpu16 (*((volatile grub_uint16_t *) addr));
+  return grub_le_to_cpu16 (*addr);
 }
 
 static inline grub_uint32_t
-mmio_read32 (volatile void *addr)
+mmio_read32 (const volatile grub_uint32_t *addr)
 {
-  return grub_le_to_cpu32 (*((volatile grub_uint32_t *) addr));
+  return grub_le_to_cpu32 (*addr);
 }
 
 /* Halt if xHCI HC not halted */
@@ -875,7 +922,7 @@ grub_xhci_hubports (grub_usb_controller_t dev)
   grub_uint32_t hcsparams1;
   unsigned int nports = 0;
 
-  hcsparams1 = mmio_read32 (xhci->cap + GRUB_XHCI_CAP_HCSPARAMS1);
+  hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
   nports = ((hcsparams1 >> 24) & 0xff);
   xhci->slots = ((hcsparams1 >> 24) & 0xff);
   grub_dprintf ("xhci", "grub_xhci_hubports nports=%d\n", nports);
@@ -1125,65 +1172,52 @@ grub_xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
 static int
 grub_xhci_dump_cap(struct grub_xhci *xhci)
 {
-  grub_uint32_t val;
-  grub_uint16_t val16;
+  grub_dprintf ("xhci", "CAPLENGTH=%d\n",
+      mmio_read8 (&xhci->cap_regs->caplength));
 
-  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_CAPLENGTH);
-  grub_dprintf ("xhci", "CAPLENGTH=%d\n", val & 0xff);
+  grub_dprintf ("xhci", "HCIVERSION=0x%04x\n",
+      mmio_read16 (&xhci->cap_regs->hciversion));
 
-  val16 = mmio_read16(xhci->cap + GRUB_XHCI_CAP_HCIVERSION);
-  grub_dprintf ("xhci", "HCIVERSION=0x%04x\n", val16);
+  grub_dprintf ("xhci", "HCSPARAMS1=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hcsparams1));
 
-  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS1);
-  grub_dprintf ("xhci", "HCSPARAMS1=0x%08x\n", val);
+  grub_dprintf ("xhci", "HCSPARAMS2=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hcsparams2));
 
-  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS2);
-  grub_dprintf ("xhci", "HCSPARAMS2=0x%08x\n", val);
+  grub_dprintf ("xhci", "HCSPARAMS3=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hcsparams3));
 
-  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCSPARAMS3);
-  grub_dprintf ("xhci", "HCSPARAMS3=0x%08x\n", val);
+  grub_dprintf ("xhci", "HCCPARAMS1=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hccparams1));
 
-  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCCPARAMS1);
-  grub_dprintf ("xhci", "HCCPARAMS1=0x%08x\n", val);
+  grub_dprintf ("xhci", "DBOFF=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->dboff));
 
-  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_DBOFF);
-  grub_dprintf ("xhci", "DBOFF=0x%08x\n", val);
+  grub_dprintf ("xhci", "RTSOFF=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->rtsoff));
 
-  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_RTSOFF);
-  grub_dprintf ("xhci", "RTSOFF=0x%08x\n", val);
-
-  val = mmio_read32(xhci->cap + GRUB_XHCI_CAP_HCCPARAMS2);
-  grub_dprintf ("xhci", "HCCPARAMS2=0x%08x\n", val);
+  grub_dprintf ("xhci", "HCCPARAMS2=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hccparams2));
 
   return 0;
 }
 
 static int
-grub_xhci_init (struct grub_xhci *xhci, volatile void *regs)
+grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
 {
-  //pci_device_cfg_read_u16 (addr.dev, &ret, addr.pos);
   //grub_int32_t hcsparams1;
   //grub_uint32_t hcsparams2;
   //grub_uint32_t hccparams1;
   //grub_uint32_t pagesize;
-  unsigned int off;
-  //unsigned int rtsoff;
-  //unsigned int dboff;
 
   //hcsparams1 = grub_xhci_cap_read32 (xhci, GRUB_XHCI_CAP_HCSPARAMS1);
   //nports = ((hcsparams1 >> 24) & 0xff);
   //xhci->slots = ((hcsparams1 >> 24) & 0xff);
 
-  (void)xhci;
-  (void)regs;
-  (void)off;
-
   /* Locate capability, operational, runtime, and doorbell registers */
-  xhci->cap = regs;
-
-  xhci->oper = xhci->cap + mmio_read32 (xhci->cap + GRUB_XHCI_CAP_CAPLENGTH);
-  xhci->runtime = xhci->cap + mmio_read32 (xhci->cap + GRUB_XHCI_CAP_RTSOFF);
-  xhci->doorbell = xhci->cap + mmio_read32 (xhci->cap + GRUB_XHCI_CAP_DBOFF);
+  xhci->cap_regs = mmio_base_addr;
+  xhci->oper_regs = (struct xhci_oper_regs *)
+    ((grub_uint8_t *)xhci->cap_regs + mmio_read8 (&xhci->cap_regs->caplength));
 
   grub_xhci_dump_cap(xhci);
 
@@ -1527,6 +1561,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
   grub_uint32_t class_code;
   grub_uint32_t addr;
   grub_uint32_t base;
+  volatile grub_uint32_t *mmio_base_addr;
   grub_uint32_t base_h;
 
   /* Exit if not USB3.0 xHCI controller */
@@ -1568,6 +1603,13 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
 
   grub_dprintf ("ehci", "xHCI 32-bit MMIO regs OK\n");
 
+  mmio_base_addr = grub_pci_device_map_range (dev,
+      (base & GRUB_XHCI_ADDR_MEM_MASK),
+      0x100); /* PCI config space is 256 bytes */
+
+  grub_dprintf ("xhci", "Start of MMIO area (BAR0): 0x%08x\n",
+      (unsigned int)mmio_base_addr);
+
   xhci = grub_malloc (sizeof (*xhci));
   if (!xhci)
     {
@@ -1575,13 +1617,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
       return GRUB_USB_ERR_INTERNAL;
     }
 
-  xhci->regs = grub_pci_device_map_range (dev,
-      (base & GRUB_XHCI_ADDR_MEM_MASK),
-      0x100); /* PCI config space is 256 bytes */
-
-  grub_dprintf ("xhci", "BAR0: 0x%08x\n", (unsigned int)xhci->regs);
-
-  err = grub_xhci_init (xhci, xhci->regs);
+  err = grub_xhci_init (xhci, mmio_base_addr);
   if (err)
   {
     grub_free(xhci);
