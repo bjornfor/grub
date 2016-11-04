@@ -1316,11 +1316,17 @@ grub_xhci_dump_oper(struct grub_xhci *xhci)
   grub_dprintf ("xhci", "CONFIG=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->config));
 
+  grub_printf ("PORTSC registers:\n");
   for (i = 0; i < xhci->max_ports; i++)
   {
-    grub_dprintf ("xhci", "PORTSC(port=%d) 0x%08x\n",
+    grub_printf (" %02d=0x%08x",
         i, xhci_read_portrs (xhci, i, PORTSC));
+    if ((i+1) % 5 == 0)
+    {
+      grub_printf ("\n");
+    }
   }
+  grub_printf ("\n");
 
   return 0;
 }
