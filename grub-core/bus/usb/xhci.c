@@ -314,8 +314,9 @@ pci_config_read32 (grub_pci_device_t dev, unsigned int reg)
 /** Number of registers per port */
 #define NUM_PORT_REGS 4
 
-/* These are read only, so we don't need volatile */
+/** Capability registers */
 struct xhci_cap_regs {
+  /* These are read only, so we don't need volatile */
   const grub_uint8_t caplength;
   const grub_uint8_t rsvd1;
   const grub_uint16_t hciversion;
@@ -329,37 +330,48 @@ struct xhci_cap_regs {
   /* Reserved up to (caplength - 0x20) */
 };
 
+/** Operational registers */
 struct xhci_oper_regs {
   /** USB Command */
-  volatile grub_uint32_t *usbcmd;
+  volatile grub_uint32_t usbcmd;
   /** USB Status */
-  volatile grub_uint32_t *usbsts;
+  volatile grub_uint32_t usbsts;
   /* Page Size */
-  volatile grub_uint32_t *pagesize;
+  volatile grub_uint32_t pagesize;
   /** Reserved */
-  grub_uint32_t *rsvdz1;
-  grub_uint32_t *rsvdz2;
+  grub_uint32_t rsvdz1;
+  grub_uint32_t rsvdz2;
   /** Device Notification Control */
-  volatile grub_uint32_t *dnctrl;
+  volatile grub_uint32_t dnctrl;
   /** Command Ring Control */
-  volatile grub_uint32_t *crcr;
+  volatile grub_uint32_t crcr;
   /** Reserved 0x20-0x2F */
-  grub_uint32_t *rsvdz3[4];
+  grub_uint32_t rsvdz3[4];
   /** Device Context Base Address Array Pointer */
-  volatile grub_uint32_t *dcbaap;
+  volatile grub_uint32_t dcbaap;
   /** Configure */
-  volatile grub_uint32_t *config;
+  volatile grub_uint32_t config;
   /** Reserved 0x3c-0x3ff */
-  grub_uint32_t *rsvdz4[241];
+  grub_uint32_t rsvdz4[241];
   /** Port Register Set 1-MaxPorts (0x400-0x13ff) */
-  volatile grub_uint32_t *reserved[NUM_PORT_REGS * 245];
+  volatile grub_uint32_t reserved[NUM_PORT_REGS * 245];
+};
+
+/** Runtime registers */
+struct xhci_run_regs {
+  const volatile grub_uint32_t microframe_index;
 };
 
 struct grub_xhci
 {
   volatile struct xhci_cap_regs *cap_regs;
   volatile struct xhci_oper_regs *oper_regs;
-  grub_uint32_t max_device_slots;
+  volatile struct xhci_run_regs *run_regs;
+
+  /* valid range 1-255 */
+  grub_uint8_t max_device_slots;
+  /* valid range 1-255 */
+  grub_uint8_t max_ports;
 
   /* linked list */
   struct grub_xhci *next;
@@ -933,13 +945,6 @@ grub_xhci_hubports (grub_usb_controller_t dev)
 
   grub_dprintf ("xhci", "grub_xhci_hubports force nports=0 (prevent hang)\n");
   nports = 0;
-
-  ///* Read structural parameters 1 */
-  //hcsparams1 = readl ( xhci->cap + XHCI_CAP_HCSPARAMS1 );
-  //xhci->slots = XHCI_HCSPARAMS1_SLOTS ( hcsparams1 );
-  //xhci->ports = XHCI_HCSPARAMS1_PORTS ( hcsparams1 );
-  //grub_dprintf ("usb", "%s has %d slots %d intrs %d ports\n",
-  //    xhci->name, xhci->slots, xhci->intrs, xhci->ports );
   return nports;
 }
 
