@@ -381,13 +381,12 @@ struct grub_xhci
   volatile struct xhci_cap_regs *cap_regs;
   volatile struct xhci_oper_regs *oper_regs;
   volatile struct xhci_run_regs *run_regs;
+  volatile struct xhci_doorbell_regs *db_regs;
 
   /* valid range 1-255 */
   grub_uint8_t max_device_slots;
   /* valid range 1-255 */
   grub_uint8_t max_ports;
-
-  volatile struct xhci_doorbell_regs *db_regs;
 
   /* linked list */
   struct grub_xhci *next;
