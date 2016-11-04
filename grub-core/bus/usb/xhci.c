@@ -1013,12 +1013,8 @@ static int
 grub_xhci_hubports (grub_usb_controller_t dev)
 {
   struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
-  grub_uint32_t hcsparams1;
   unsigned int nports = 0;
 
-  hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
-  xhci->max_device_slots = hcsparams1 & 0xff;
-  xhci->max_ports = (hcsparams1 >> 24) & 0xff;
   nports = xhci->max_ports;
   grub_dprintf ("xhci", "grub_xhci_hubports nports=%d\n", nports);
 
@@ -1295,6 +1291,7 @@ grub_xhci_dump_cap(struct grub_xhci *xhci)
 static int
 grub_xhci_dump_oper(struct grub_xhci *xhci)
 {
+  int i;
   grub_uint32_t val32;
 
   grub_dprintf ("xhci", "USBCMD=0x%08x\n",
@@ -1319,20 +1316,22 @@ grub_xhci_dump_oper(struct grub_xhci *xhci)
   grub_dprintf ("xhci", "CONFIG=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->config));
 
+  for (i = 0; i < xhci->max_ports; i++)
+  {
+    grub_dprintf ("xhci", "PORTSC(port=%d) 0x%08x\n",
+        i, xhci_read_portrs (xhci, i, PORTSC));
+  }
+
   return 0;
 }
 
 static int
 grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
 {
-  //grub_int32_t hcsparams1;
+  grub_int32_t hcsparams1;
   //grub_uint32_t hcsparams2;
   //grub_uint32_t hccparams1;
   //grub_uint32_t pagesize;
-
-  //hcsparams1 = grub_xhci_cap_read32 (xhci, GRUB_XHCI_CAP_HCSPARAMS1);
-  //nports = ((hcsparams1 >> 24) & 0xff);
-  //xhci->slots = ((hcsparams1 >> 24) & 0xff);
 
   /* Locate capability, operational, runtime, and doorbell registers */
   xhci->cap_regs = mmio_base_addr;
@@ -1342,6 +1341,10 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
     ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK));
   xhci->run_regs = (struct xhci_run_regs *)
     ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK));
+
+  hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
+  xhci->max_device_slots = hcsparams1 & 0xff;
+  xhci->max_ports = (hcsparams1 >> 24) & 0xff;
 
   grub_xhci_dump_cap(xhci);
   grub_xhci_dump_oper(xhci);
