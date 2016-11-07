@@ -116,6 +116,24 @@ enum
   GRUB_XHCI_USBLEGSUP_OS_OWNED = (1 << 24)
 };
 
+/* Operational register USBSTS bits */
+enum
+{
+  XHCI_USBSTS_HCH  = (1 <<  0), /* HCHalted */
+  /* RsvdZ */
+  XHCI_USBSTS_HSE  = (1 <<  2), /* Host System Error */
+  XHCI_USBSTS_EINT = (1 <<  3), /* Event Interrupt */
+  XHCI_USBSTS_PCD  = (1 <<  4), /* Port Change Detect */
+  /* RsvdZ */
+  XHCI_USBSTS_SSS  = (1 <<  8), /* Save State Status */
+  XHCI_USBSTS_RSS  = (1 <<  9), /* Restore State Status */
+  XHCI_USBSTS_SRE  = (1 << 10), /* Save/Restore Error */
+  XHCI_USBSTS_CNR  = (1 << 11), /* Controller Not Ready */
+  XHCI_USBSTS_HCE  = (1 << 12), /* Host Controller Error */
+  /* RsvdZ */
+};
+
+
 /* Operational register PORTSC bits */
 enum
 {
@@ -524,7 +542,7 @@ grub_xhci_dump_oper_portsc(struct grub_xhci *xhci, int port)
   grub_uint32_t portsc;
 
   portsc = xhci_read_portrs (xhci, port, PORTSC);
-  grub_printf ("PORTSC(%02d)=0x%08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+  grub_printf (" PORTSC(%02d)=0x%08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
       port, portsc
       , portsc & XHCI_PORTSC_CCS ? " CCS" : ""
       , portsc & XHCI_PORTSC_PED ? " PED" : ""
@@ -556,12 +574,25 @@ grub_xhci_dump_oper(struct grub_xhci *xhci)
 {
   int i;
   grub_uint32_t val32;
+  char extra[256];
 
   grub_dprintf ("xhci", "USBCMD=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->usbcmd));
 
-  grub_dprintf ("xhci", "USBSTS=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->usbsts));
+  val32 = mmio_read32(&xhci->oper_regs->usbsts);
+  grub_snprintf (extra, sizeof (extra),
+		 "%s%s%s%s%s%s%s%s%s"
+                 , val32 & XHCI_USBSTS_HCH ? " HCH" : ""
+                 , val32 & XHCI_USBSTS_HSE ? " HCE" : ""
+                 , val32 & XHCI_USBSTS_EINT ? " EINT" : ""
+                 , val32 & XHCI_USBSTS_PCD ? " PCD" : ""
+                 , val32 & XHCI_USBSTS_SSS ? " SSS" : ""
+                 , val32 & XHCI_USBSTS_RSS ? " RSS" : ""
+                 , val32 & XHCI_USBSTS_SRE ? " SRE" : ""
+                 , val32 & XHCI_USBSTS_CNR ? " CNR" : ""
+                 , val32 & XHCI_USBSTS_HCE ? " HCE" : ""
+      );
+  grub_dprintf ("xhci", "USBSTS=0x%08x%s\n", val32, extra);
 
   val32 = mmio_read32 (&xhci->oper_regs->pagesize);
   grub_dprintf ("xhci", "PAGESIZE=%d (%d bytes)\n",
@@ -926,7 +957,7 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   grub_uint32_t portsc;
 
   grub_dprintf ("xhci", "grub_xhci_detect_dev port=%d\n", port);
-  grub_xhci_dump_oper_portsc(xhci, port);
+  grub_xhci_dump_oper(xhci);
   portsc = xhci_read_portrs (xhci, port, PORTSC);
   if (portsc & XHCI_PORTSC_CCS)
   {
