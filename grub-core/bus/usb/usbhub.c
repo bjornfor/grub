@@ -691,7 +691,7 @@ grub_usb_poll_devices (int wait_for_completion)
       /* No, it should be never changed, it should be constant. */
       for (i = 0; i < hub->nports; i++)
 	{
-          grub_printf("\n");
+          grub_dprintf("usb", "\n");
           grub_dprintf("usb", "grub_usb_poll_devices hub=0x%08x port=%d\n",
               (unsigned int)hub, i);
 	  grub_usb_speed_t speed = GRUB_USB_SPEED_NONE;
