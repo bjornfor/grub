@@ -21,22 +21,40 @@
  * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
+//FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <strings.h>
-#include <errno.h>
-#include <byteswap.h>
-#include <ipxe/malloc.h>
-#include <ipxe/umalloc.h>
-#include <ipxe/pci.h>
-#include <ipxe/usb.h>
-#include <ipxe/init.h>
-#include <ipxe/profile.h>
-#include "xhci.h"
+//#include <stdlib.h>
+//#include <stdio.h>
+//#include <unistd.h>
+//#include <string.h>
+//#include <strings.h>
+//#include <errno.h>
+//#include <byteswap.h>
+//#include <ipxe/malloc.h>
+//#include <ipxe/umalloc.h>
+//#include <ipxe/pci.h>
+//#include <ipxe/usb.h>
+//#include <ipxe/init.h>
+//#include <ipxe/profile.h>
+#include "xhci-ipxe.h"
+
+/* Tweaks to make iPXE driver build in GRUB */
+#define __profiler
+struct profiler
+{
+  const char *name;
+};
+uint8_t readb(void *addr);
+uint8_t readb(void *addr)
+{
+  return *(uint8_t*)addr;
+}
+uint32_t readl(void *addr);
+uint32_t readl(void *addr)
+{
+  return *(uint32_t*)addr;
+}
+/* end tweaks */
 
 /** @file
  *

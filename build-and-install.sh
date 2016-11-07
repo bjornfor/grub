@@ -13,5 +13,5 @@ if [ "$1" = "quick" ]; then
 else
     # ./autogen.sh
     # ./configure --prefix=$PWD/_install
-    make CFLAGS+=-Wno-error=unused-function install && sudo ./_install/bin/grub-mknetdir --net-directory="$tftpdir"/
+    make TARGET_CFLAGS+="-Wno-error=unused-function -Wno-error=pointer-arith -Wno-empty-body" install && sudo ./_install/bin/grub-mknetdir --net-directory="$tftpdir"/
 fi

@@ -7,12 +7,25 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
+//FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
-#include <assert.h>
-#include <ipxe/pci.h>
-#include <ipxe/uaccess.h>
-#include <ipxe/usb.h>
+//#include <assert.h>
+//#include <ipxe/pci.h>
+//#include <ipxe/uaccess.h>
+//#include <ipxe/usb.h>
+#include <grub/types.h>
+
+/* Tweaks to make iPXE driver build in GRUB */
+typedef grub_uint8_t uint8_t;
+typedef grub_uint16_t uint16_t;
+typedef grub_uint32_t uint32_t;
+typedef grub_uint64_t uint64_t;
+typedef grub_size_t size_t;
+typedef grub_uint32_t physaddr_t;
+typedef grub_uint32_t userptr_t;
+#define assert(expr) do {} while (0)
+#define virt_to_phys(addr) (grub_uint32_t)(addr)
+/* end tweaks */
 
 /** Minimum alignment required for data structures
  *
@@ -370,7 +383,7 @@ struct xhci_trb_normal {
 /** A setup stage transfer request block */
 struct xhci_trb_setup {
 	/** Setup packet */
-	struct usb_setup_packet packet;
+	//struct usb_setup_packet packet;
 	/** Length */
 	uint32_t len;
 	/** Flags */
