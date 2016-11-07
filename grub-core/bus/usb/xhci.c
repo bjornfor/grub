@@ -1284,8 +1284,11 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   xhci->max_ports = (hcsparams1 >> 24) & 0xff;
   mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_OPER_USBCMD_RUNSTOP);
 
-  xhci_dump_cap(xhci);
-  xhci_dump_oper(xhci);
+  if (debug_enabled())
+  {
+    xhci_dump_cap(xhci);
+    xhci_dump_oper(xhci);
+  }
 
 #if 0
 
