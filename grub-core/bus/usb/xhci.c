@@ -778,7 +778,7 @@ grub_xhci_fini_hw (int noreturn __attribute__ ((unused)))
 }
 
 static grub_usb_err_t
-grub_xhci_cancel_transfer (grub_usb_controller_t dev,
+xhci_cancel_transfer (grub_usb_controller_t dev,
 			   grub_usb_transfer_t transfer)
 {
   struct grub_xhci *xhci = dev->data;
@@ -786,7 +786,7 @@ grub_xhci_cancel_transfer (grub_usb_controller_t dev,
     transfer->controller_data;
   (void)cdata;
   (void)xhci;
-  grub_dprintf ("xhci", "grub_xhci_cancel_transfer: begin\n");
+  grub_dprintf ("xhci", "xhci_cancel_transfer: begin\n");
   return GRUB_USB_ERR_NONE;
 
 #if 0
@@ -898,7 +898,7 @@ grub_xhci_cancel_transfer (grub_usb_controller_t dev,
 }
 
 static grub_usb_speed_t
-grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
+xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
 {
   struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
   grub_uint32_t status, line_state;
@@ -911,7 +911,7 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   static int state;
   grub_uint32_t portsc;
 
-  grub_dprintf ("xhci", "grub_xhci_detect_dev port=%d\n", port);
+  grub_dprintf ("xhci", "xhci_detect_dev port=%d\n", port);
   grub_xhci_dump_oper_portsc(xhci, port);
   portsc = xhci_read_portrs (xhci, port, PORTSC);
   if (portsc & XHCI_PORTSC_CCS)
@@ -1012,13 +1012,13 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
 }
 
 static grub_usb_err_t
-grub_xhci_portstatus (grub_usb_controller_t dev,
+xhci_portstatus (grub_usb_controller_t dev,
 		      unsigned int port, unsigned int enable)
 {
   (void)dev;
   (void)port;
   (void)enable;
-  grub_dprintf ("xhci", "grub_xhci_portstatus enter (port=%d, enable=%d)\n",
+  grub_dprintf ("xhci", "xhci_portstatus enter (port=%d, enable=%d)\n",
       port, enable);
   return GRUB_USB_ERR_NONE;
 
@@ -1099,22 +1099,22 @@ grub_xhci_portstatus (grub_usb_controller_t dev,
 }
 
 static int
-grub_xhci_hubports (grub_usb_controller_t dev)
+xhci_hubports (grub_usb_controller_t dev)
 {
   struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
   unsigned int nports = 0;
 
   nports = xhci->max_ports;
-  grub_dprintf ("xhci", "grub_xhci_hubports nports=%d\n", nports);
+  grub_dprintf ("xhci", "xhci_hubports nports=%d\n", nports);
 
-  //grub_dprintf ("xhci", "grub_xhci_hubports force nports=0 (prevent hang)\n");
+  //grub_dprintf ("xhci", "xhci_hubports force nports=0 (prevent hang)\n");
   //nports = 0;
   //xhci->max_ports = nports;
   return nports;
 }
 
 static grub_usb_err_t
-grub_xhci_check_transfer (grub_usb_controller_t dev,
+xhci_check_transfer (grub_usb_controller_t dev,
 			  grub_usb_transfer_t transfer, grub_size_t * actual)
 {
   struct grub_xhci *xhci = dev->data;
@@ -1124,7 +1124,7 @@ grub_xhci_check_transfer (grub_usb_controller_t dev,
   (void)xhci;
   (void)actual;
 
-  grub_dprintf ("xhci", "grub_xhci_check_transfer enter\n");
+  grub_dprintf ("xhci", "xhci_check_transfer enter\n");
   return GRUB_USB_ERR_NONE;
 #if 0
   grub_uint32_t token, token_ftd;
@@ -1189,12 +1189,12 @@ grub_xhci_check_transfer (grub_usb_controller_t dev,
 
 
 static grub_usb_err_t
-grub_xhci_setup_transfer (grub_usb_controller_t dev,
+xhci_setup_transfer (grub_usb_controller_t dev,
 			  grub_usb_transfer_t transfer)
 {
   (void)dev;
   (void)transfer;
-  grub_dprintf ("xhci", "grub_xhci_setup_transfer enter\n");
+  grub_dprintf ("xhci", "xhci_setup_transfer enter\n");
   /* pretend we managed to start sending data */
   return GRUB_USB_ERR_NONE;
 
@@ -1328,13 +1328,13 @@ grub_xhci_setup_transfer (grub_usb_controller_t dev,
 
 
 static int
-grub_xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
+xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
 {
   struct grub_xhci *xhci;
   struct grub_usb_controller dev;
   (void)dev;
 
-  grub_dprintf ("xhci", "grub_xhci_iterate enter\n");
+  grub_dprintf ("xhci", "xhci_iterate enter\n");
   for (xhci = xhci_list; xhci; xhci = xhci->next)
     {
       dev.data = xhci;
@@ -1684,13 +1684,13 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
 
 static struct grub_usb_controller_dev usb_controller_dev = {
   .name = "xhci",
-  .iterate = grub_xhci_iterate,
-  .setup_transfer = grub_xhci_setup_transfer, /* give data to HW, let it go */
-  .check_transfer = grub_xhci_check_transfer, /* check if HW has completed transfer, polled by USB framework (see usbtrans.c) */
-  .cancel_transfer = grub_xhci_cancel_transfer, /* called if/when check_transfer has failed over a period of time */
-  .hubports = grub_xhci_hubports,
-  .portstatus = grub_xhci_portstatus,
-  .detect_dev = grub_xhci_detect_dev,
+  .iterate = xhci_iterate,
+  .setup_transfer = xhci_setup_transfer, /* give data to HW, let it go */
+  .check_transfer = xhci_check_transfer, /* check if HW has completed transfer, polled by USB framework (see usbtrans.c) */
+  .cancel_transfer = xhci_cancel_transfer, /* called if/when check_transfer has failed over a period of time */
+  .hubports = xhci_hubports,
+  .portstatus = xhci_portstatus,
+  .detect_dev = xhci_detect_dev,
   /* estimated max. count of TDs for one bulk transfer */
   .max_bulk_tds = 16, //GRUB_EHCI_N_TD * 3 / 4
 };
