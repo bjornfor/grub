@@ -1412,10 +1412,10 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
   xhci->cap_regs = mmio_base_addr;
   xhci->oper_regs = (struct xhci_oper_regs *)
     ((grub_uint8_t *)xhci->cap_regs + mmio_read8 (&xhci->cap_regs->caplength));
-  xhci->db_regs = (struct xhci_doorbell_regs *)
-    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK));
   xhci->run_regs = (struct xhci_run_regs *)
     ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK));
+  xhci->db_regs = (struct xhci_doorbell_regs *)
+    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK));
 
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
   xhci->max_device_slots = hcsparams1 & 0xff;
