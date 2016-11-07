@@ -1460,11 +1460,11 @@ static unsigned long pci_bar ( struct grub_pci_device *dev, unsigned int reg ) {
   grub_uint32_t low;
   grub_uint32_t high;
 
-  low = pci_config_read (*dev, reg);
+  low = pci_config_read32 (*dev, reg);
   if ( ( low & (GRUB_PCI_ADDR_SPACE_IO|GRUB_PCI_ADDR_MEM_TYPE_MASK))
       == GRUB_PCI_ADDR_MEM_TYPE_64 )
     {
-      high = pci_config_read (*dev, reg + 4);
+      high = pci_config_read32 (*dev, reg + 4);
       if ( high )
         {
           if ( sizeof ( unsigned long ) > sizeof ( grub_uint32_t ) ) {
@@ -1525,8 +1525,7 @@ xhci_pci_iter (grub_pci_device_t dev,
   grub_uint32_t base_h;
 
   /* Exit if not USB3.0 xHCI controller */
-  /* TODO: endianness (PCI regs are little-endian) */
-  class_code = pci_config_read (dev, GRUB_PCI_REG_CLASS) >> 8;
+  class_code = pci_config_read32 (dev, GRUB_PCI_REG_CLASS) >> 8;
   if (class_code != 0x0c0330)
     return 0;
 
