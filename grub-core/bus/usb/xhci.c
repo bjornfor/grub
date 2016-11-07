@@ -18,8 +18,14 @@
  */
 
 /*
- * Simple xHCI driver for GRUB. No interrupts, just polling. No 64-bit
- * addressing support.
+ * Simple xHCI driver for GRUB.
+ *
+ * Limitations:
+ *  - 32-bit addressing (no 64-bit)
+ *  - No interrupts (just polling)
+ *  - Only bulk transfer
+ *
+ * Status: INCOMPLETE
  *
  * [spec] http://www.intel.com/content/www/us/en/io/universal-serial-bus/extensible-host-controler-interface-usb-xhci.html
  */
