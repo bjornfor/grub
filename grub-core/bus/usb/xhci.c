@@ -485,6 +485,114 @@ xhci_read_portrs(struct grub_xhci *xhci, unsigned int port, enum xhci_portrs_typ
   return mmio_read32 ((grub_uint32_t *)addr);
 }
 
+static int
+grub_xhci_dump_cap(struct grub_xhci *xhci)
+{
+  grub_dprintf ("xhci", "CAPLENGTH=%d\n",
+      mmio_read8 (&xhci->cap_regs->caplength));
+
+  grub_dprintf ("xhci", "HCIVERSION=0x%04x\n",
+      mmio_read16 (&xhci->cap_regs->hciversion));
+
+  grub_dprintf ("xhci", "HCSPARAMS1=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hcsparams1));
+
+  grub_dprintf ("xhci", "HCSPARAMS2=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hcsparams2));
+
+  grub_dprintf ("xhci", "HCSPARAMS3=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hcsparams3));
+
+  grub_dprintf ("xhci", "HCCPARAMS1=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hccparams1));
+
+  grub_dprintf ("xhci", "DBOFF=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK);
+
+  grub_dprintf ("xhci", "RTSOFF=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK);
+
+  grub_dprintf ("xhci", "HCCPARAMS2=0x%08x\n",
+      mmio_read32 (&xhci->cap_regs->hccparams2));
+
+  return 0;
+}
+
+static void
+grub_xhci_dump_oper_portsc(struct grub_xhci *xhci, int port)
+{
+  grub_uint32_t portsc;
+
+  portsc = xhci_read_portrs (xhci, port, PORTSC);
+  grub_printf ("PORTSC(%02d)=0x%08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+      port, portsc
+      , portsc & XHCI_PORTSC_CCS ? " CCS" : ""
+      , portsc & XHCI_PORTSC_PED ? " PED" : ""
+      , portsc & XHCI_PORTSC_OCA ? " OCA" : ""
+      , portsc & XHCI_PORTSC_PR ? " PR" : ""
+      , portsc & XHCI_PORTSC_PLS ? " PLS" : ""
+      , portsc & XHCI_PORTSC_PP ? " PP" : ""
+      , portsc & XHCI_PORTSC_PS ? " PS" : ""
+      , portsc & XHCI_PORTSC_PIC ? " PIC" : ""
+      , portsc & XHCI_PORTSC_LWS ? " LWS" : ""
+      , portsc & XHCI_PORTSC_CSC ? " CSC" : ""
+      , portsc & XHCI_PORTSC_PEC ? " PEC" : ""
+      , portsc & XHCI_PORTSC_WRC ? " WRC" : ""
+      , portsc & XHCI_PORTSC_OCC ? " OCC" : ""
+      , portsc & XHCI_PORTSC_PRC ? " PRC" : ""
+      , portsc & XHCI_PORTSC_PLC ? " PLC" : ""
+      , portsc & XHCI_PORTSC_CEC ? " CEC" : ""
+      , portsc & XHCI_PORTSC_CAS ? " CAS" : ""
+      , portsc & XHCI_PORTSC_WCE ? " WCE" : ""
+      , portsc & XHCI_PORTSC_WDE ? " WDE" : ""
+      , portsc & XHCI_PORTSC_WOE ? " WOE" : ""
+      , portsc & XHCI_PORTSC_DR ? " DR" : ""
+      , portsc & XHCI_PORTSC_WPR ? " WPR" : ""
+      );
+}
+
+static int
+grub_xhci_dump_oper(struct grub_xhci *xhci)
+{
+  int i;
+  grub_uint32_t val32;
+
+  grub_dprintf ("xhci", "USBCMD=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->usbcmd));
+
+  grub_dprintf ("xhci", "USBSTS=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->usbsts));
+
+  val32 = mmio_read32 (&xhci->oper_regs->pagesize);
+  grub_dprintf ("xhci", "PAGESIZE=%d (%d bytes)\n",
+      val32, 1 << (val32 + 12));
+
+  grub_dprintf ("xhci", "DNCTRL=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->dnctrl));
+
+  grub_dprintf ("xhci", "CRCR=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->crcr));
+
+  grub_dprintf ("xhci", "DCBAAP=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->dcbaap));
+
+  grub_dprintf ("xhci", "CONFIG=0x%08x\n",
+      mmio_read32 (&xhci->oper_regs->config));
+
+  grub_printf ("PORTSC registers:\n");
+  for (i = 0; i < xhci->max_ports; i++)
+  {
+    grub_xhci_dump_oper_portsc(xhci, i);
+    if ((i+1) % 5 == 0)
+    {
+      grub_printf ("\n");
+    }
+  }
+  grub_printf ("\n");
+
+  return 0;
+}
+
 /* Halt if xHCI HC not halted */
 static grub_usb_err_t
 grub_xhci_halt (struct grub_xhci *xhci)
@@ -818,33 +926,8 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   grub_uint32_t portsc;
 
   grub_dprintf ("xhci", "grub_xhci_detect_dev port=%d\n", port);
+  grub_xhci_dump_oper_portsc(xhci, port);
   portsc = xhci_read_portrs (xhci, port, PORTSC);
-  grub_dprintf ("xhci", "PORTSC(%02d)=0x%08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
-      port, portsc
-      , portsc & XHCI_PORTSC_CCS ? " CCS" : ""
-      , portsc & XHCI_PORTSC_PED ? " PED" : ""
-      , portsc & XHCI_PORTSC_OCA ? " OCA" : ""
-      , portsc & XHCI_PORTSC_PR ? " PR" : ""
-      , portsc & XHCI_PORTSC_PLS ? " PLS" : ""
-      , portsc & XHCI_PORTSC_PP ? " PP" : ""
-      , portsc & XHCI_PORTSC_PS ? " PS" : ""
-      , portsc & XHCI_PORTSC_PIC ? " PIC" : ""
-      , portsc & XHCI_PORTSC_LWS ? " LWS" : ""
-      , portsc & XHCI_PORTSC_CSC ? " CSC" : ""
-      , portsc & XHCI_PORTSC_PEC ? " PEC" : ""
-      , portsc & XHCI_PORTSC_WRC ? " WRC" : ""
-      , portsc & XHCI_PORTSC_OCC ? " OCC" : ""
-      , portsc & XHCI_PORTSC_PRC ? " PRC" : ""
-      , portsc & XHCI_PORTSC_PLC ? " PLC" : ""
-      , portsc & XHCI_PORTSC_CEC ? " CEC" : ""
-      , portsc & XHCI_PORTSC_CAS ? " CAS" : ""
-      , portsc & XHCI_PORTSC_WCE ? " WCE" : ""
-      , portsc & XHCI_PORTSC_WDE ? " WDE" : ""
-      , portsc & XHCI_PORTSC_WOE ? " WOE" : ""
-      , portsc & XHCI_PORTSC_DR ? " DR" : ""
-      , portsc & XHCI_PORTSC_WPR ? " WPR" : ""
-      );
-
   if (portsc & XHCI_PORTSC_CCS)
   {
     grub_dprintf ("xhci", "IS CONNECTED!!!!\n");
@@ -1272,106 +1355,6 @@ grub_xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
       if (hook (&dev, hook_data))
           return 1;
     }
-
-  return 0;
-}
-
-static int
-grub_xhci_dump_cap(struct grub_xhci *xhci)
-{
-  grub_dprintf ("xhci", "CAPLENGTH=%d\n",
-      mmio_read8 (&xhci->cap_regs->caplength));
-
-  grub_dprintf ("xhci", "HCIVERSION=0x%04x\n",
-      mmio_read16 (&xhci->cap_regs->hciversion));
-
-  grub_dprintf ("xhci", "HCSPARAMS1=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->hcsparams1));
-
-  grub_dprintf ("xhci", "HCSPARAMS2=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->hcsparams2));
-
-  grub_dprintf ("xhci", "HCSPARAMS3=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->hcsparams3));
-
-  grub_dprintf ("xhci", "HCCPARAMS1=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->hccparams1));
-
-  grub_dprintf ("xhci", "DBOFF=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK);
-
-  grub_dprintf ("xhci", "RTSOFF=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK);
-
-  grub_dprintf ("xhci", "HCCPARAMS2=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->hccparams2));
-
-  return 0;
-}
-
-static int
-grub_xhci_dump_oper(struct grub_xhci *xhci)
-{
-  int i;
-  grub_uint32_t val32;
-
-  grub_dprintf ("xhci", "USBCMD=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->usbcmd));
-
-  grub_dprintf ("xhci", "USBSTS=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->usbsts));
-
-  val32 = mmio_read32 (&xhci->oper_regs->pagesize);
-  grub_dprintf ("xhci", "PAGESIZE=%d (%d bytes)\n",
-      val32, 1 << (val32 + 12));
-
-  grub_dprintf ("xhci", "DNCTRL=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->dnctrl));
-
-  grub_dprintf ("xhci", "CRCR=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->crcr));
-
-  grub_dprintf ("xhci", "DCBAAP=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->dcbaap));
-
-  grub_dprintf ("xhci", "CONFIG=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->config));
-
-  grub_printf ("PORTSC registers:\n");
-  for (i = 0; i < xhci->max_ports; i++)
-  {
-    grub_uint32_t portsc = xhci_read_portrs (xhci, i, PORTSC);
-    grub_printf (" %02d=0x%08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
-        i, portsc
-        , portsc & XHCI_PORTSC_CCS ? " CCS" : ""
-        , portsc & XHCI_PORTSC_PED ? " PED" : ""
-        , portsc & XHCI_PORTSC_OCA ? " OCA" : ""
-        , portsc & XHCI_PORTSC_PR ? " PR" : ""
-        , portsc & XHCI_PORTSC_PLS ? " PLS" : ""
-        , portsc & XHCI_PORTSC_PP ? " PP" : ""
-        , portsc & XHCI_PORTSC_PS ? " PS" : ""
-        , portsc & XHCI_PORTSC_PIC ? " PIC" : ""
-        , portsc & XHCI_PORTSC_LWS ? " LWS" : ""
-        , portsc & XHCI_PORTSC_CSC ? " CSC" : ""
-        , portsc & XHCI_PORTSC_PEC ? " PEC" : ""
-        , portsc & XHCI_PORTSC_WRC ? " WRC" : ""
-        , portsc & XHCI_PORTSC_OCC ? " OCC" : ""
-        , portsc & XHCI_PORTSC_PRC ? " PRC" : ""
-        , portsc & XHCI_PORTSC_PLC ? " PLC" : ""
-        , portsc & XHCI_PORTSC_CEC ? " CEC" : ""
-        , portsc & XHCI_PORTSC_CAS ? " CAS" : ""
-        , portsc & XHCI_PORTSC_WCE ? " WCE" : ""
-        , portsc & XHCI_PORTSC_WDE ? " WDE" : ""
-        , portsc & XHCI_PORTSC_WOE ? " WOE" : ""
-        , portsc & XHCI_PORTSC_DR ? " DR" : ""
-        , portsc & XHCI_PORTSC_WPR ? " WPR" : ""
-        );
-    if ((i+1) % 5 == 0)
-    {
-      grub_printf ("\n");
-    }
-  }
-  grub_printf ("\n");
 
   return 0;
 }
