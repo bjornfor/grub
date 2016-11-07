@@ -119,33 +119,30 @@ enum
 /* Operational register PORTSC bits */
 enum
 {
-  GRUB_XHCI_PORTSC_CCS = (1 << 0), /* current connect status */
-  GRUB_XHCI_PORTSC_PED = (1 << 1), /* port enabled/disabled */
-  /* reserved */
-  GRUB_XHCI_PORT_ENABLED = (1 << 2),
-  GRUB_XHCI_PORT_ENABLED_CH = (1 << 3),
-  GRUB_XHCI_PORT_OVERCUR = (1 << 4),
-  GRUB_XHCI_PORT_OVERCUR_CH = (1 << 5),
-  GRUB_XHCI_PORT_RESUME = (1 << 6),
-  GRUB_XHCI_PORT_SUSPEND = (1 << 7),
-  GRUB_XHCI_PORT_RESET = (1 << 8),
-  GRUB_XHCI_PORT_LINE_STAT = (3 << 10),
-  GRUB_XHCI_PORT_POWER = (1 << 12),
-  GRUB_XHCI_PORT_OWNER = (1 << 13),
-  GRUB_XHCI_PORT_INDICATOR = (3 << 14),
-  GRUB_XHCI_PORT_TEST = (0xf << 16),
-  GRUB_XHCI_PORT_WON_CONN_E = (1 << 20),
-  GRUB_XHCI_PORT_WON_DISC_E = (1 << 21),
-  GRUB_XHCI_PORT_WON_OVER_E = (1 << 22),
-
-  GRUB_XHCI_PORT_LINE_SE0 = (0 << 10),
-  GRUB_XHCI_PORT_LINE_K = (1 << 10),
-  GRUB_XHCI_PORT_LINE_J = (2 << 10),
-  GRUB_XHCI_PORT_LINE_UNDEF = (3 << 10),
-  GRUB_XHCI_PORT_LINE_LOWSP = GRUB_XHCI_PORT_LINE_K,	/* K state means low speed */
-  GRUB_XHCI_PORT_WMASK = ~(GRUB_XHCI_PORTSC_PED
-			   | GRUB_XHCI_PORT_ENABLED_CH
-			   | GRUB_XHCI_PORT_OVERCUR_CH)
+  XHCI_PORTSC_CCS = (  1 <<  0), /* Current Connect Status */
+  XHCI_PORTSC_PED = (  1 <<  1), /* Port Enabled/Disabled */
+  /* RsvdZ */
+  XHCI_PORTSC_OCA = (  1 <<  3), /* Over-current Active */
+  XHCI_PORTSC_PR  = (  1 <<  4), /* Port Reset */
+  XHCI_PORTSC_PLS = (0xf <<  5), /* Port Link State */
+  XHCI_PORTSC_PP  = (  1 <<  9), /* Port Power */
+  XHCI_PORTSC_PS  = (0xf << 10), /* Port Speed */
+  XHCI_PORTSC_PIC = (0x2 << 14), /* Port Indicator Control */
+  XHCI_PORTSC_LWS = (  1 << 16), /* Port Link State Write Strobe */
+  XHCI_PORTSC_CSC = (  1 << 17), /* Connect Status Change */
+  XHCI_PORTSC_PEC = (  1 << 18), /* Port Enabled/Disabled Change */
+  XHCI_PORTSC_WRC = (  1 << 19), /* Warm Port Reset Change */
+  XHCI_PORTSC_OCC = (  1 << 20), /* Over-current Change */
+  XHCI_PORTSC_PRC = (  1 << 21), /* Port Reset Change */
+  XHCI_PORTSC_PLC = (  1 << 22), /* Port Link State Change */
+  XHCI_PORTSC_CEC = (  1 << 23), /* Port Config Error Change */
+  XHCI_PORTSC_CAS = (  1 << 24), /* Cold Attach Status */
+  XHCI_PORTSC_WCE = (  1 << 25), /* Wake on Connect Enable */
+  XHCI_PORTSC_WDE = (  1 << 26), /* Wake on Disconnect Enable */
+  XHCI_PORTSC_WOE = (  1 << 27), /* Wake on Over-current Enable */
+  /* RsvdZ */
+  XHCI_PORTSC_DR  = (  1 << 30), /* Device Removable */
+  XHCI_PORTSC_WPR = (  1 << 31), /* Warm Port Reset */
 };
 
 /* Operational register CONFIGFLAGS bits */
@@ -819,10 +816,35 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   (void)line_state;
   (void)status;
   static int state;
+  grub_uint32_t portsc;
 
   grub_dprintf ("xhci", "grub_xhci_detect_dev port=%d\n", port);
-  grub_dprintf ("xhci", "PORTSC(port=%d): 0x%08x\n",
-      port, xhci_read_portrs (xhci, port, PORTSC));
+  portsc = xhci_read_portrs (xhci, port, PORTSC);
+  grub_dprintf ("xhci", "PORTSC(%02d)=0x%08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+      port, portsc
+      , portsc & XHCI_PORTSC_CCS ? " CCS" : ""
+      , portsc & XHCI_PORTSC_PED ? " PED" : ""
+      , portsc & XHCI_PORTSC_OCA ? " OCA" : ""
+      , portsc & XHCI_PORTSC_PR ? " PR" : ""
+      , portsc & XHCI_PORTSC_PLS ? " PLS" : ""
+      , portsc & XHCI_PORTSC_PP ? " PP" : ""
+      , portsc & XHCI_PORTSC_PS ? " PS" : ""
+      , portsc & XHCI_PORTSC_PIC ? " PIC" : ""
+      , portsc & XHCI_PORTSC_LWS ? " LWS" : ""
+      , portsc & XHCI_PORTSC_CSC ? " CSC" : ""
+      , portsc & XHCI_PORTSC_PEC ? " PEC" : ""
+      , portsc & XHCI_PORTSC_WRC ? " WRC" : ""
+      , portsc & XHCI_PORTSC_OCC ? " OCC" : ""
+      , portsc & XHCI_PORTSC_PRC ? " PRC" : ""
+      , portsc & XHCI_PORTSC_PLC ? " PLC" : ""
+      , portsc & XHCI_PORTSC_CEC ? " CEC" : ""
+      , portsc & XHCI_PORTSC_CAS ? " CAS" : ""
+      , portsc & XHCI_PORTSC_WCE ? " WCE" : ""
+      , portsc & XHCI_PORTSC_WDE ? " WDE" : ""
+      , portsc & XHCI_PORTSC_WOE ? " WOE" : ""
+      , portsc & XHCI_PORTSC_DR ? " DR" : ""
+      , portsc & XHCI_PORTSC_WPR ? " WPR" : ""
+      );
 
   is_connected = xhci_read_portrs (xhci, port, PORTSC) & 1;
   if (is_connected)
@@ -1020,6 +1042,7 @@ grub_xhci_hubports (grub_usb_controller_t dev)
 
   //grub_dprintf ("xhci", "grub_xhci_hubports force nports=0 (prevent hang)\n");
   //nports = 0;
+  //xhci->max_ports = nports;
   return nports;
 }
 
@@ -1319,8 +1342,32 @@ grub_xhci_dump_oper(struct grub_xhci *xhci)
   grub_printf ("PORTSC registers:\n");
   for (i = 0; i < xhci->max_ports; i++)
   {
-    grub_printf (" %02d=0x%08x",
-        i, xhci_read_portrs (xhci, i, PORTSC));
+    grub_uint32_t portsc = xhci_read_portrs (xhci, i, PORTSC);
+    grub_printf (" %02d=0x%08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+        i, portsc
+        , portsc & XHCI_PORTSC_CCS ? " CCS" : ""
+        , portsc & XHCI_PORTSC_PED ? " PED" : ""
+        , portsc & XHCI_PORTSC_OCA ? " OCA" : ""
+        , portsc & XHCI_PORTSC_PR ? " PR" : ""
+        , portsc & XHCI_PORTSC_PLS ? " PLS" : ""
+        , portsc & XHCI_PORTSC_PP ? " PP" : ""
+        , portsc & XHCI_PORTSC_PS ? " PS" : ""
+        , portsc & XHCI_PORTSC_PIC ? " PIC" : ""
+        , portsc & XHCI_PORTSC_LWS ? " LWS" : ""
+        , portsc & XHCI_PORTSC_CSC ? " CSC" : ""
+        , portsc & XHCI_PORTSC_PEC ? " PEC" : ""
+        , portsc & XHCI_PORTSC_WRC ? " WRC" : ""
+        , portsc & XHCI_PORTSC_OCC ? " OCC" : ""
+        , portsc & XHCI_PORTSC_PRC ? " PRC" : ""
+        , portsc & XHCI_PORTSC_PLC ? " PLC" : ""
+        , portsc & XHCI_PORTSC_CEC ? " CEC" : ""
+        , portsc & XHCI_PORTSC_CAS ? " CAS" : ""
+        , portsc & XHCI_PORTSC_WCE ? " WCE" : ""
+        , portsc & XHCI_PORTSC_WDE ? " WDE" : ""
+        , portsc & XHCI_PORTSC_WOE ? " WOE" : ""
+        , portsc & XHCI_PORTSC_DR ? " DR" : ""
+        , portsc & XHCI_PORTSC_WPR ? " WPR" : ""
+        );
     if ((i+1) % 5 == 0)
     {
       grub_printf ("\n");
