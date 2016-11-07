@@ -1179,7 +1179,7 @@ xhci_check_transfer (grub_usb_controller_t dev,
   (void)xhci;
   (void)actual;
 
-  xhci_trace ("xhci_check_transfer enter\n");
+  xhci_trace ("xhci_check_transfer enter (TODO: implement)\n");
   return GRUB_USB_ERR_NONE;
 #if 0
   grub_uint32_t token, token_ftd;
@@ -1249,7 +1249,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
 {
   (void)dev;
   (void)transfer;
-  xhci_trace ("xhci_setup_transfer enter\n");
+  xhci_trace ("xhci_setup_transfer enter (TODO: implement)\n");
   /* pretend we managed to start sending data */
   return GRUB_USB_ERR_NONE;
 
@@ -1741,11 +1741,19 @@ static struct grub_usb_controller_dev usb_controller_dev = {
   .name = "xhci",
   .iterate = xhci_iterate,
   .setup_transfer = xhci_setup_transfer, /* give data to HW, let it go */
-  .check_transfer = xhci_check_transfer, /* check if HW has completed transfer, polled by USB framework (see usbtrans.c) */
-  .cancel_transfer = xhci_cancel_transfer, /* called if/when check_transfer has failed over a period of time */
+
+  .check_transfer = xhci_check_transfer, /* check if HW has completed transfer,
+                                          * polled by USB framework (see
+                                          * usbtrans.c)
+                                          */
+
+  .cancel_transfer = xhci_cancel_transfer, /* called if/when check_transfer has
+                                            * failed over a period of time
+                                            */
   .hubports = xhci_hubports,
   .portstatus = xhci_portstatus,
   .detect_dev = xhci_detect_dev,
+
   /* estimated max. count of TDs for one bulk transfer */
   .max_bulk_tds = 16, //GRUB_EHCI_N_TD * 3 / 4
 };
@@ -1753,12 +1761,7 @@ static struct grub_usb_controller_dev usb_controller_dev = {
 GRUB_MOD_INIT (xhci)
 {
   xhci_trace ("[loading]\n");
-
-  /* TODO: anything to compile time check? */
-  //COMPILE_TIME_ASSERT (sizeof (struct grub_xhci_FOO) == 64);
-
   grub_stop_disk_firmware ();
-
   grub_boot_time ("Initing xHCI hardware");
   grub_pci_iterate (grub_xhci_pci_iter, NULL);
   grub_boot_time ("Registering xHCI driver");
