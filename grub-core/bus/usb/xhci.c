@@ -42,16 +42,18 @@ GRUB_MOD_LICENSE ("GPLv3+");
 /* USB Command Register (USBCMD) bits. Section 5.4.1 in [spec]. */
 enum
 {
-  XHCI_OPER_USBCMD_RUNSTOP = (1 <<  0),
-  XHCI_OPER_USBCMD_HCRST   = (1 <<  1), /* host controller reset */
-  XHCI_OPER_USBCMD_INTE    = (1 <<  2), /* interrupter enable */
-  XHCI_OPER_USBCMD_HSEE    = (1 <<  3), /* host system error enable */
-  /* bit 6:4 reserved */
-  XHCI_OPER_USBCMD_LHCRST  = (1 <<  7), /* light host controller reset */
-  XHCI_OPER_USBCMD_CSS     = (1 <<  8), /* controller save state */
-  XHCI_OPER_USBCMD_CRS     = (1 <<  9), /* controller restore state */
-  XHCI_OPER_USBCMD_EWE     = (1 << 10), /* enable wrap event */
-  /* ... */
+  XHCI_OPER_USBCMD_RUNSTOP = (1 <<  0), /* Run = 1 / Stop = 0 */
+  XHCI_OPER_USBCMD_HCRST   = (1 <<  1), /* Host Controller Reset */
+  XHCI_OPER_USBCMD_INTE    = (1 <<  2), /* Interrupter Enable */
+  XHCI_OPER_USBCMD_HSEE    = (1 <<  3), /* Host System Error Enable */
+  /* RsvdP */
+  XHCI_OPER_USBCMD_LHCRST  = (1 <<  7), /* Light Host Controller Reset */
+  XHCI_OPER_USBCMD_CSS     = (1 <<  8), /* Controller Save State */
+  XHCI_OPER_USBCMD_CRS     = (1 <<  9), /* Controller Restore State */
+  XHCI_OPER_USBCMD_EU3S    = (1 << 11), /* Enable U3 MFINDEX Stop */
+  XHCI_OPER_USBCMD_SPE     = (1 << 12), /* Short Packet Enable */
+  XHCI_OPER_USBCMD_CME     = (1 << 13), /* CEM Enable */
+  /* RsvdP */
 };
 
 /* USB Status Register (USBSTS) bits. Section 5.4.2 in [spec]. */
@@ -1363,8 +1365,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
   xhci->max_device_slots = hcsparams1 & 0xff;
   xhci->max_ports = (hcsparams1 >> 24) & 0xff;
-  mmio_write32(&xhci->oper_regs->usbcmd,
-      mmio_read32(&xhci->oper_regs->usbcmd) | XHCI_OPER_USBCMD_RUNSTOP);
+  mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_OPER_USBCMD_RUNSTOP);
 
   grub_xhci_dump_cap(xhci);
   grub_xhci_dump_oper(xhci);
