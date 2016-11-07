@@ -77,16 +77,16 @@ enum
 
 
 /* Offset relative to Operational Base */
-#define GRUB_XHCI_PORTSC(port) (0x400 + (0x10 * (port - 1)))
+#define XHCI_PORTSC(port) (0x400 + (0x10 * (port - 1)))
 
-#define GRUB_XHCI_ADDR_MEM_MASK	(~0xff)
-#define GRUB_XHCI_POINTER_MASK	(~0x1f)
+#define XHCI_ADDR_MEM_MASK	(~0xff)
+#define XHCI_POINTER_MASK	(~0x1f)
 
 /* USB Legacy Support Capability (USBLEGSUP) bits. Section 7.1.1 in [spec]. */
 enum
 {
-  GRUB_XHCI_USBLEGSUP_BIOS_OWNED = (1 << 16),
-  GRUB_XHCI_USBLEGSUP_OS_OWNED = (1 << 24)
+  XHCI_USBLEGSUP_BIOS_OWNED = (1 << 16),
+  XHCI_USBLEGSUP_OS_OWNED = (1 << 24)
 };
 
 
@@ -118,109 +118,6 @@ enum
   XHCI_PORTSC_DR  = (  1 << 30), /* Device Removable */
   XHCI_PORTSC_WPR = (  1 << 31), /* Warm Port Reset */
 };
-
-/* Operational register CONFIGFLAGS bits */
-enum
-{
-  GRUB_XHCI_CF_XHCI_OWNER = (1 << 0)
-};
-
-/* Queue Head & Transfer Descriptor constants */
-#define GRUB_XHCI_HPTR_OFF       5	/* Horiz. pointer bit offset */
-enum
-{
-  GRUB_XHCI_HPTR_TYPE_MASK = (3 << 1),
-  GRUB_XHCI_HPTR_TYPE_ITD = (0 << 1),
-  GRUB_XHCI_HPTR_TYPE_QH = (1 << 1),
-  GRUB_XHCI_HPTR_TYPE_SITD = (2 << 1),
-  GRUB_XHCI_HPTR_TYPE_FSTN = (3 << 1)
-};
-
-enum
-{
-  GRUB_XHCI_C = (1 << 27),
-  GRUB_XHCI_MAXPLEN_MASK = (0x7ff << 16),
-  GRUB_XHCI_H = (1 << 15),
-  GRUB_XHCI_DTC = (1 << 14),
-  GRUB_XHCI_SPEED_MASK = (3 << 12),
-  GRUB_XHCI_SPEED_FULL = (0 << 12),
-  GRUB_XHCI_SPEED_LOW = (1 << 12),
-  GRUB_XHCI_SPEED_HIGH = (2 << 12),
-  GRUB_XHCI_SPEED_RESERVED = (3 << 12),
-  GRUB_XHCI_EP_NUM_MASK = (0xf << 8),
-  GRUB_XHCI_DEVADDR_MASK = 0x7f,
-  GRUB_XHCI_TARGET_MASK = (GRUB_XHCI_EP_NUM_MASK | GRUB_XHCI_DEVADDR_MASK)
-};
-
-enum
-{
-  GRUB_XHCI_MAXPLEN_OFF = 16,
-  GRUB_XHCI_SPEED_OFF = 12,
-  GRUB_XHCI_EP_NUM_OFF = 8
-};
-
-enum
-{
-  GRUB_XHCI_MULT_MASK = (3 << 30),
-  GRUB_XHCI_MULT_RESERVED = (0 << 30),
-  GRUB_XHCI_MULT_ONE = (1 << 30),
-  GRUB_XHCI_MULT_TWO = (2 << 30),
-  GRUB_XHCI_MULT_THREE = (3 << 30),
-  GRUB_XHCI_DEVPORT_MASK = (0x7f << 23),
-  GRUB_XHCI_HUBADDR_MASK = (0x7f << 16),
-  GRUB_XHCI_CMASK_MASK = (0xff << 8),
-  GRUB_XHCI_SMASK_MASK = (0xff << 0),
-};
-
-enum
-{
-  GRUB_XHCI_MULT_OFF = 30,
-  GRUB_XHCI_DEVPORT_OFF = 23,
-  GRUB_XHCI_HUBADDR_OFF = 16,
-  GRUB_XHCI_CMASK_OFF = 8,
-  GRUB_XHCI_SMASK_OFF = 0,
-};
-
-#define GRUB_XHCI_TERMINATE      (1<<0)
-
-#define GRUB_XHCI_TOGGLE         (1<<31)
-
-enum
-{
-  GRUB_XHCI_TOTAL_MASK = (0x7fff << 16),
-  GRUB_XHCI_CERR_MASK = (3 << 10),
-  GRUB_XHCI_CERR_0 = (0 << 10),
-  GRUB_XHCI_CERR_1 = (1 << 10),
-  GRUB_XHCI_CERR_2 = (2 << 10),
-  GRUB_XHCI_CERR_3 = (3 << 10),
-  GRUB_XHCI_PIDCODE_OUT = (0 << 8),
-  GRUB_XHCI_PIDCODE_IN = (1 << 8),
-  GRUB_XHCI_PIDCODE_SETUP = (2 << 8),
-  GRUB_XHCI_STATUS_MASK = 0xff,
-  GRUB_XHCI_STATUS_ACTIVE = (1 << 7),
-  GRUB_XHCI_STATUS_HALTED = (1 << 6),
-  GRUB_XHCI_STATUS_BUFERR = (1 << 5),
-  GRUB_XHCI_STATUS_BABBLE = (1 << 4),
-  GRUB_XHCI_STATUS_TRANERR = (1 << 3),
-  GRUB_XHCI_STATUS_MISSDMF = (1 << 2),
-  GRUB_XHCI_STATUS_SPLITST = (1 << 1),
-  GRUB_XHCI_STATUS_PINGERR = (1 << 0)
-};
-
-enum
-{
-  GRUB_XHCI_TOTAL_OFF = 16,
-  GRUB_XHCI_CERR_OFF = 10
-};
-
-#define GRUB_XHCI_BUFPTR_MASK    (0xfffff<<12)
-#define GRUB_XHCI_QHTDPTR_MASK   0xffffffe0
-
-#define GRUB_XHCI_TD_BUF_PAGES   5
-
-#define GRUB_XHCI_BUFPAGELEN     0x1000
-#define GRUB_XHCI_MAXBUFLEN      0x5000
-
 
 /** Number of device slots */
 #define XHCI_HCSPARAMS1_SLOTS(params) ( ( (params) >> 0 ) & 0xff )
@@ -691,6 +588,31 @@ xhci_reset (struct xhci *xhci)
   return GRUB_USB_ERR_NONE;
 }
 
+static void
+xhci_run (struct xhci *xhci)
+{
+  (void)xhci;
+  //grub_uint32_t config;
+  //grub_uint32_t usbcmd;
+
+  //if (mmio_read32(&xhci->oper_regs->usbsts) & )
+  {
+    //xhci_err("programming error\n");
+  }
+
+  /* Configure number of device ports */
+  //mmio_set_bits(&xhci->oper_regs->config, xhci->max_ports);
+
+  //config = readl ( xhci->op + XHCI_OP_CONFIG );
+  //config &= ~XHCI_CONFIG_MAX_SLOTS_EN_MASK;
+  //config |= XHCI_CONFIG_MAX_SLOTS_EN ( xhci->slots );
+  //writel ( config, xhci->op + XHCI_OP_CONFIG );
+
+  /* Set run/stop bit */
+  //usbcmd = readl ( xhci->op + XHCI_OP_USBCMD );
+  //usbcmd |= XHCI_USBCMD_RUN;
+  //writel ( usbcmd, xhci->op + XHCI_OP_USBCMD );
+}
 
 #if 0
 
@@ -713,29 +635,6 @@ sync_all_caches (struct xhci *xhci)
     grub_arch_sync_dma_caches (xhci->framelist_virt, 4096);
 #endif
 }
-
-
-static inline void
-grub_xhci_port_resbits (struct xhci *xhci, grub_uint32_t port,
-			grub_uint32_t bits)
-{
-  grub_xhci_oper_write32 (xhci, GRUB_XHCI_PORTSC(port),
-			  grub_xhci_port_read (xhci,
-					       port) & GRUB_XHCI_PORT_WMASK &
-			  ~(bits));
-  grub_xhci_port_read (xhci, port);
-}
-
-static inline void
-grub_xhci_port_setbits (struct xhci *xhci, grub_uint32_t port,
-			grub_uint32_t bits)
-{
-  grub_xhci_oper_write32 (xhci, GRUB_XHCI_PORTSC(port),
-			  (grub_xhci_port_read (xhci, port) &
-			   GRUB_XHCI_PORT_WMASK) | bits);
-  grub_xhci_port_read (xhci, port);
-}
-
 
 #endif
 
@@ -903,7 +802,7 @@ xhci_cancel_transfer (grub_usb_controller_t dev,
   cdata->qh_virt->qh_hptr =
     grub_cpu_to_le32 ((grub_dma_virt2phys (cdata->qh_virt,
                                            xhci->qh_chunk)
-                       & GRUB_XHCI_POINTER_MASK) | GRUB_XHCI_HPTR_TYPE_QH);
+                       & XHCI_POINTER_MASK) | GRUB_XHCI_HPTR_TYPE_QH);
 
   grub_free (cdata);
 
@@ -1055,7 +954,7 @@ xhci_portstatus (grub_usb_controller_t dev,
    * - if enable==true we will do the reset and the specification says
    *   PortEnable should be FALSE in such case */
   /* Disable the port and wait for it. */
-  xhci_cap_read32 (xhci, GRUB_XHCI_PORTSC(port));
+  xhci_cap_read32 (xhci, XHCI_PORTSC(port));
   endtime = grub_get_time_ms () + 1000;
   while (grub_xhci_port_read (xhci, port) & GRUB_XHCI_PORT_ENABLED)
     if (grub_get_time_ms () > endtime)
@@ -1413,13 +1312,13 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
     pciaddr_eecp = grub_pci_make_address (dev, eecp_offset);
 
     usblegsup = grub_pci_read (pciaddr_eecp);
-    if (usblegsup & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
+    if (usblegsup & XHCI_USBLEGSUP_BIOS_OWNED)
       {
         grub_boot_time ("Taking ownership of xHCI controller");
         xhci_trace (
                       "xHCI grub_xhci_pci_iter: xHCI owned by: BIOS\n");
         /* Ownership change - set OS_OWNED bit */
-        grub_pci_write (pciaddr_eecp, usblegsup | GRUB_XHCI_USBLEGSUP_OS_OWNED);
+        grub_pci_write (pciaddr_eecp, usblegsup | XHCI_USBLEGSUP_OS_OWNED);
         /* Ensure PCI register is written */
         grub_pci_read (pciaddr_eecp);
 
@@ -1427,19 +1326,19 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
          * says it can take up to 16 ms
          */
         maxtime = grub_get_time_ms () + 1000;
-        while ((grub_pci_read (pciaddr_eecp) & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
+        while ((grub_pci_read (pciaddr_eecp) & XHCI_USBLEGSUP_BIOS_OWNED)
                && (grub_get_time_ms () < maxtime));
-        if (grub_pci_read (pciaddr_eecp) & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
+        if (grub_pci_read (pciaddr_eecp) & XHCI_USBLEGSUP_BIOS_OWNED)
           {
             xhci_trace (
                           "xHCI grub_xhci_pci_iter: xHCI change ownership timeout");
             /* Change ownership in "hard way" - reset BIOS ownership */
-            grub_pci_write (pciaddr_eecp, GRUB_XHCI_USBLEGSUP_OS_OWNED);
+            grub_pci_write (pciaddr_eecp, XHCI_USBLEGSUP_OS_OWNED);
             /* Ensure PCI register is written */
             grub_pci_read (pciaddr_eecp);
           }
       }
-    else if (usblegsup & GRUB_XHCI_USBLEGSUP_OS_OWNED)
+    else if (usblegsup & XHCI_USBLEGSUP_OS_OWNED)
       /* XXX: What to do in this case - nothing ? Can it happen ? */
       xhci_trace ("xHCI grub_xhci_pci_iter: xHCI owned by: OS\n");
     else
@@ -1449,7 +1348,7 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
         /* XXX: What to do in this case ? Can it happen ?
          * Is code below correct ? */
         /* Ownership change - set OS_OWNED bit */
-        grub_pci_write (pciaddr_eecp, GRUB_XHCI_USBLEGSUP_OS_OWNED);
+        grub_pci_write (pciaddr_eecp, XHCI_USBLEGSUP_OS_OWNED);
         /* Ensure PCI register is written */
         grub_pci_read (pciaddr_eecp);
       }
@@ -1493,10 +1392,10 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
       n_ports = xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
 	& GRUB_XHCI_SPARAMS_N_PORTS;
       for (i = 0; i < (int) n_ports; i++)
-	grub_xhci_oper_write32 (xhci, GRUB_XHCI_PORTSC(port),
+	grub_xhci_oper_write32 (xhci, XHCI_PORTSC(port),
 				GRUB_XHCI_PORT_POWER
 				| grub_xhci_oper_read32 (xhci,
-							 GRUB_XHCI_PORTSC(i)));
+							 XHCI_PORTSC(i)));
     }
 
   /* Ensure all commands are written */
@@ -1542,14 +1441,6 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   grub_free (xhci);
   return 0;
 }
-
-#if 0
-static int
-grub_pci_config_read (grub_pci_device_t dev, int reg)
-{
-  return *(volatile grub_uint32_t *) config_addr (addr);
-}
-#endif
 
 /*
  * Read PCI BAR
@@ -1673,7 +1564,7 @@ xhci_pci_iter (grub_pci_device_t dev,
   xhci_trace ("xHCI 32-bit MMIO regs OK\n");
 
   mmio_base_addr = grub_pci_device_map_range (dev,
-      (base & GRUB_XHCI_ADDR_MEM_MASK),
+      (base & XHCI_ADDR_MEM_MASK),
       0x100); /* PCI config space is 256 bytes */
 
   xhci_trace ("Start of MMIO area (BAR0): 0x%08x\n",
