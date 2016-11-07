@@ -50,17 +50,17 @@ GRUB_MOD_LICENSE ("GPLv3+");
 /* USB Command Register (USBCMD) bits. Section 5.4.1 in [spec]. */
 enum
 {
-  XHCI_OPER_USBCMD_RUNSTOP = (1 <<  0), /* Run = 1 / Stop = 0 */
-  XHCI_OPER_USBCMD_HCRST   = (1 <<  1), /* Host Controller Reset */
-  XHCI_OPER_USBCMD_INTE    = (1 <<  2), /* Interrupter Enable */
-  XHCI_OPER_USBCMD_HSEE    = (1 <<  3), /* Host System Error Enable */
+  XHCI_USBCMD_RUNSTOP = (1 <<  0), /* Run = 1 / Stop = 0 */
+  XHCI_USBCMD_HCRST   = (1 <<  1), /* Host Controller Reset */
+  XHCI_USBCMD_INTE    = (1 <<  2), /* Interrupter Enable */
+  XHCI_USBCMD_HSEE    = (1 <<  3), /* Host System Error Enable */
   /* RsvdP */
-  XHCI_OPER_USBCMD_LHCRST  = (1 <<  7), /* Light Host Controller Reset */
-  XHCI_OPER_USBCMD_CSS     = (1 <<  8), /* Controller Save State */
-  XHCI_OPER_USBCMD_CRS     = (1 <<  9), /* Controller Restore State */
-  XHCI_OPER_USBCMD_EU3S    = (1 << 11), /* Enable U3 MFINDEX Stop */
-  XHCI_OPER_USBCMD_SPE     = (1 << 12), /* Short Packet Enable */
-  XHCI_OPER_USBCMD_CME     = (1 << 13), /* CEM Enable */
+  XHCI_USBCMD_LHCRST  = (1 <<  7), /* Light Host Controller Reset */
+  XHCI_USBCMD_CSS     = (1 <<  8), /* Controller Save State */
+  XHCI_USBCMD_CRS     = (1 <<  9), /* Controller Restore State */
+  XHCI_USBCMD_EU3S    = (1 << 11), /* Enable U3 MFINDEX Stop */
+  XHCI_USBCMD_SPE     = (1 << 12), /* Short Packet Enable */
+  XHCI_USBCMD_CME     = (1 << 13), /* CEM Enable */
   /* RsvdP */
 };
 
@@ -550,7 +550,7 @@ xhci_halt (struct xhci *xhci)
   if (is_halted == 0)
     {
       xhci_trace ("grub_xhci_halt not halted - halting now\n");
-      mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_OPER_USBCMD_RUNSTOP);
+      mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_USBCMD_RUNSTOP);
       /* Ensure command is written */
       mmio_read32(&xhci->oper_regs->usbcmd);
       maxtime = grub_get_time_ms () + 16000; /* spec says 16ms max */
@@ -579,16 +579,16 @@ xhci_reset (struct xhci *xhci)
 
   //sync_all_caches (xhci);
 
-  mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_OPER_USBCMD_HCRST);
+  mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_USBCMD_HCRST);
   /* Ensure command is written */
   mmio_read32(&xhci->oper_regs->usbcmd);
   /* XXX: How long time could take reset of HC ? */
   maxtime = grub_get_time_ms () + 16000;
   while (((mmio_read32(&xhci->oper_regs->usbsts)
-           & XHCI_OPER_USBCMD_HCRST) == 0)
+           & XHCI_USBCMD_HCRST) == 0)
          && (grub_get_time_ms () < maxtime));
   if ((mmio_read32 (&xhci->oper_regs->usbsts)
-       & XHCI_OPER_USBCMD_HCRST) == 0)
+       & XHCI_USBCMD_HCRST) == 0)
     return GRUB_USB_ERR_TIMEOUT;
 
   return GRUB_USB_ERR_NONE;
@@ -665,7 +665,7 @@ xhci_restore_hw (void)
 
       /* Setup some xHCI registers and enable xHCI */
 //      grub_xhci_oper_write32 (xhci, GRUB_XHCI_OPER_USBCMD,
-//			      XHCI_OPER_USBCMD_RUNSTOP |
+//			      XHCI_USBCMD_RUNSTOP |
 //			      grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
 
       /* Now should be possible to power-up and enumerate ports etc. */
@@ -1288,7 +1288,7 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
   xhci->max_device_slots = hcsparams1 & 0xff;
   xhci->max_ports = (hcsparams1 >> 24) & 0xff;
-  mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_OPER_USBCMD_RUNSTOP);
+  mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_USBCMD_RUNSTOP);
 
   if (debug_enabled())
   {
@@ -1412,7 +1412,7 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
 
   /* Enable xHCI */
   grub_xhci_oper_write32 (xhci, GRUB_XHCI_OPER_USBCMD,
-			  XHCI_OPER_USBCMD_RUNSTOP
+			  XHCI_USBCMD_RUNSTOP
 			  | grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
 
   /* Ensure command is written */
