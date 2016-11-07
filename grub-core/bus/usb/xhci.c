@@ -29,6 +29,8 @@
 #include <grub/usb.h>
 #include <grub/usbtrans.h>
 #include <grub/misc.h>
+#include <grub/env.h>
+#include <grub/term.h>
 #include <grub/pci.h>
 #include <grub/cpu/pci.h>
 #include <grub/cpu/io.h>
@@ -239,6 +241,62 @@ enum
 /** Capability parameters */
 #define XHCI_CAP_HCCPARAMS1 0x10
 
+static int debug_enabled(void)
+{
+  const char *debug = grub_env_get ("debug");
+
+  return debug &&
+    (grub_strword (debug, "all") || grub_strword (debug, "xhci"));
+}
+
+/**
+ * A printf function which prefixes output with "FILE:LINENO: "
+ * Only output anything if the GRUB debug variable contains "all" or "xhci".
+ */
+static void
+xhci_trace(const char *fmt, ...)
+{
+  va_list args;
+
+  if (debug_enabled())
+    {
+      grub_printf ("%s:%d: ", GRUB_FILE, __LINE__);
+      va_start (args, fmt);
+      grub_vprintf (fmt, args);
+      va_end (args);
+      grub_refresh ();
+    }
+}
+
+/**
+ * A printf function which does not prefix output.
+ * Only output anything if the GRUB debug variable contains "all" or "xhci".
+ */
+static void
+xhci_dbg(const char *fmt, ...)
+{
+  va_list args;
+
+  if (debug_enabled())
+    {
+      va_start (args, fmt);
+      grub_vprintf (fmt, args);
+      va_end (args);
+      grub_refresh ();
+    }
+}
+
+static void
+xhci_err(const char *fmt, ...)
+{
+  va_list args;
+
+  va_start (args, fmt);
+  grub_vprintf (fmt, args);
+  va_end (args);
+  grub_refresh ();
+}
+
 static grub_uint32_t
 pci_config_read (grub_pci_device_t dev, unsigned int reg)
 {
@@ -271,9 +329,6 @@ pci_config_read32 (grub_pci_device_t dev, unsigned int reg)
   addr = grub_pci_make_address (dev, reg);
   return grub_le_to_cpu32 (grub_pci_read (addr) );
 }
-
-/** Number of registers per port */
-#define NUM_PORT_REGS 4
 
 /** bit 1:0 is Rsvd */
 #define DBOFF_MASK (~0x3)
@@ -452,7 +507,7 @@ xhci_read_portrs(struct grub_xhci *xhci, unsigned int port, enum xhci_portrs_typ
 
   if (port > xhci->max_ports)
   {
-    grub_dprintf ("xhci", "too big port number\n");
+    xhci_err ("too big port number\n");
     return ~0;
   }
 
@@ -463,31 +518,31 @@ xhci_read_portrs(struct grub_xhci *xhci, unsigned int port, enum xhci_portrs_typ
 static int
 grub_xhci_dump_cap(struct grub_xhci *xhci)
 {
-  grub_dprintf ("xhci", "CAPLENGTH=%d\n",
+  xhci_trace ("CAPLENGTH=%d\n",
       mmio_read8 (&xhci->cap_regs->caplength));
 
-  grub_dprintf ("xhci", "HCIVERSION=0x%04x\n",
+  xhci_trace ("HCIVERSION=0x%04x\n",
       mmio_read16 (&xhci->cap_regs->hciversion));
 
-  grub_dprintf ("xhci", "HCSPARAMS1=0x%08x\n",
+  xhci_trace ("HCSPARAMS1=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hcsparams1));
 
-  grub_dprintf ("xhci", "HCSPARAMS2=0x%08x\n",
+  xhci_trace ("HCSPARAMS2=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hcsparams2));
 
-  grub_dprintf ("xhci", "HCSPARAMS3=0x%08x\n",
+  xhci_trace ("HCSPARAMS3=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hcsparams3));
 
-  grub_dprintf ("xhci", "HCCPARAMS1=0x%08x\n",
+  xhci_trace ("HCCPARAMS1=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hccparams1));
 
-  grub_dprintf ("xhci", "DBOFF=0x%08x\n",
+  xhci_trace ("DBOFF=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK);
 
-  grub_dprintf ("xhci", "RTSOFF=0x%08x\n",
+  xhci_trace ("RTSOFF=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK);
 
-  grub_dprintf ("xhci", "HCCPARAMS2=0x%08x\n",
+  xhci_trace ("HCCPARAMS2=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hccparams2));
 
   return 0;
@@ -533,7 +588,7 @@ grub_xhci_dump_oper(struct grub_xhci *xhci)
   grub_uint32_t val32;
   char extra[256];
 
-  grub_dprintf ("xhci", "USBCMD=0x%08x\n",
+  xhci_trace ("USBCMD=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->usbcmd));
 
   val32 = mmio_read32(&xhci->oper_regs->usbsts);
@@ -549,22 +604,22 @@ grub_xhci_dump_oper(struct grub_xhci *xhci)
                  , val32 & XHCI_USBSTS_CNR ? " CNR" : ""
                  , val32 & XHCI_USBSTS_HCE ? " HCE" : ""
       );
-  grub_dprintf ("xhci", "USBSTS=0x%08x%s\n", val32, extra);
+  xhci_trace ("USBSTS=0x%08x%s\n", val32, extra);
 
   val32 = mmio_read32 (&xhci->oper_regs->pagesize);
-  grub_dprintf ("xhci", "PAGESIZE=%d (%d bytes)\n",
+  xhci_trace ("PAGESIZE=%d (%d bytes)\n",
       val32, 1 << (val32 + 12));
 
-  grub_dprintf ("xhci", "DNCTRL=0x%08x\n",
+  xhci_trace ("DNCTRL=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->dnctrl));
 
-  grub_dprintf ("xhci", "CRCR=0x%08x\n",
+  xhci_trace ("CRCR=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->crcr));
 
-  grub_dprintf ("xhci", "DCBAAP=0x%08x\n",
+  xhci_trace ("DCBAAP=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->dcbaap));
 
-  grub_dprintf ("xhci", "CONFIG=0x%08x\n",
+  xhci_trace ("CONFIG=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->config));
 
   grub_printf ("PORTSC registers:\n");
@@ -591,7 +646,7 @@ grub_xhci_halt (struct grub_xhci *xhci)
   is_halted = mmio_read32(&xhci->oper_regs->usbsts) & XHCI_USBSTS_HCH;
   if (is_halted == 0)
     {
-      grub_dprintf ("xhci", "grub_xhci_halt not halted - halting now\n");
+      xhci_trace ("grub_xhci_halt not halted - halting now\n");
       mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_OPER_USBCMD_RUNSTOP);
       /* Ensure command is written */
       mmio_read32(&xhci->oper_regs->usbcmd);
@@ -605,7 +660,7 @@ grub_xhci_halt (struct grub_xhci *xhci)
     }
   else
   {
-    grub_dprintf ("xhci", "grub_xhci_halt already halted\n");
+    xhci_trace ("grub_xhci_halt already halted\n");
   }
 
   return GRUB_USB_ERR_NONE;
@@ -617,7 +672,7 @@ grub_xhci_reset (struct grub_xhci *xhci)
 {
   grub_uint64_t maxtime;
 
-  grub_dprintf ("xhci", "grub_xhci_reset enter\n");
+  xhci_trace ("grub_xhci_reset enter\n");
 
   //sync_all_caches (xhci);
 
@@ -643,7 +698,7 @@ static void
 sync_all_caches (struct grub_xhci *xhci)
 {
   (void)xhci;
-  grub_dprintf("xhci", "sync_all_caches enter\n");
+  xhci_trace("sync_all_caches enter\n");
   return;
 #if 0
   if (!xhci)
@@ -728,7 +783,7 @@ grub_xhci_restore_hw (void)
   //grub_uint32_t n_ports;
   //int i;
 
-  grub_dprintf("xhci", "grub_xhci_restore_hw enter\n");
+  xhci_trace("grub_xhci_restore_hw enter\n");
   /* We should re-enable all xHCI HW similarly as on inithw */
   for (xhci = xhci_list; xhci; xhci = xhci->next)
     {
@@ -757,7 +812,7 @@ grub_xhci_fini_hw (int noreturn __attribute__ ((unused)))
 {
   struct grub_xhci *xhci;
 
-  grub_dprintf ("xhci", "grub_xhci_fini_hw enter\n");
+  xhci_trace ("grub_xhci_fini_hw enter\n");
 
   /* We should disable all xHCI HW to prevent any DMA access etc. */
   for (xhci = xhci_list; xhci; xhci = xhci->next)
@@ -786,7 +841,7 @@ xhci_cancel_transfer (grub_usb_controller_t dev,
     transfer->controller_data;
   (void)cdata;
   (void)xhci;
-  grub_dprintf ("xhci", "xhci_cancel_transfer: begin\n");
+  xhci_trace ("xhci_cancel_transfer: begin\n");
   return GRUB_USB_ERR_NONE;
 
 #if 0
@@ -802,7 +857,7 @@ xhci_cancel_transfer (grub_usb_controller_t dev,
 
   /* QH can be active and should be de-activated and halted */
 
-  grub_dprintf ("xhci", "cancel_transfer: begin\n");
+  xhci_trace ("cancel_transfer: begin\n");
 
   /* First check if xHCI is running - if not, there is no problem */
   /* to cancel any transfer. Or, if transfer is asynchronous, check */
@@ -815,7 +870,7 @@ xhci_cancel_transfer (grub_usb_controller_t dev,
       grub_xhci_pre_finish_transfer (transfer);
       grub_free (cdata);
       sync_all_caches (xhci);
-      grub_dprintf ("xhci", "cancel_transfer: end - xHCI not running\n");
+      xhci_trace ("cancel_transfer: end - xHCI not running\n");
       return GRUB_USB_ERR_NONE;
     }
 
@@ -889,7 +944,7 @@ xhci_cancel_transfer (grub_usb_controller_t dev,
 
   grub_free (cdata);
 
-  grub_dprintf ("xhci", "cancel_transfer: end\n");
+  xhci_trace ("cancel_transfer: end\n");
 
   sync_all_caches (xhci);
 
@@ -911,12 +966,12 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   static int state;
   grub_uint32_t portsc;
 
-  grub_dprintf ("xhci", "xhci_detect_dev port=%d\n", port);
+  xhci_trace ("xhci_detect_dev port=%d\n", port);
   grub_xhci_dump_oper_portsc(xhci, port);
   portsc = xhci_read_portrs (xhci, port, PORTSC);
   if (portsc & XHCI_PORTSC_CCS)
   {
-    grub_dprintf ("xhci", "IS CONNECTED!!!!\n");
+    xhci_trace ("IS CONNECTED!!!!\n");
     grub_millisleep (10000);
   }
 
@@ -1018,7 +1073,7 @@ xhci_portstatus (grub_usb_controller_t dev,
   (void)dev;
   (void)port;
   (void)enable;
-  grub_dprintf ("xhci", "xhci_portstatus enter (port=%d, enable=%d)\n",
+  xhci_trace ("xhci_portstatus enter (port=%d, enable=%d)\n",
       port, enable);
   return GRUB_USB_ERR_NONE;
 
@@ -1026,9 +1081,9 @@ xhci_portstatus (grub_usb_controller_t dev,
   struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
   grub_uint64_t endtime;
 
-  grub_dprintf ("xhci", "portstatus: xHCI USBSTS: %08x\n",
+  xhci_trace ("portstatus: xHCI USBSTS: %08x\n",
 		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBSTS));
-  grub_dprintf ("xhci",
+  xhci_trace (
 		"portstatus: begin, iobase_cap=%p, port=%d, status=0x%02x\n",
 		xhci->iobase_cap, port, grub_xhci_port_read (xhci, port));
 
@@ -1045,13 +1100,13 @@ xhci_portstatus (grub_usb_controller_t dev,
 
   if (!enable)			/* We don't need reset port */
     {
-      grub_dprintf ("xhci", "portstatus: Disabled.\n");
-      grub_dprintf ("xhci", "portstatus: end, status=0x%02x\n",
+      xhci_trace ("portstatus: Disabled.\n");
+      xhci_trace ("portstatus: end, status=0x%02x\n",
 		    grub_xhci_port_read (xhci, port));
       return GRUB_USB_ERR_NONE;
     }
 
-  grub_dprintf ("xhci", "portstatus: enable\n");
+  xhci_trace ("portstatus: enable\n");
 
   grub_boot_time ("Resetting port %d", port);
 
@@ -1073,7 +1128,7 @@ xhci_portstatus (grub_usb_controller_t dev,
   /* Test if port enabled, i.xhci. HIGH speed device connected */
   if ((grub_xhci_port_read (xhci, port) & GRUB_XHCI_PORT_ENABLED) != 0)	/* yes! */
     {
-      grub_dprintf ("xhci", "portstatus: Enabled!\n");
+      xhci_trace ("portstatus: Enabled!\n");
       /* "Reset recovery time" (USB spec.) */
       grub_millisleep (10);
     }
@@ -1091,7 +1146,7 @@ xhci_portstatus (grub_usb_controller_t dev,
    * message on screen - but this situation is not error, it is normal
    * state! */
 
-  grub_dprintf ("xhci", "portstatus: end, status=0x%02x\n",
+  xhci_trace ("portstatus: end, status=0x%02x\n",
 		grub_xhci_port_read (xhci, port));
 
 #endif
@@ -1105,9 +1160,9 @@ xhci_hubports (grub_usb_controller_t dev)
   unsigned int nports = 0;
 
   nports = xhci->max_ports;
-  grub_dprintf ("xhci", "xhci_hubports nports=%d\n", nports);
+  xhci_trace ("xhci_hubports nports=%d\n", nports);
 
-  //grub_dprintf ("xhci", "xhci_hubports force nports=0 (prevent hang)\n");
+  //xhci_trace ("xhci_hubports force nports=0 (prevent hang)\n");
   //nports = 0;
   //xhci->max_ports = nports;
   return nports;
@@ -1124,27 +1179,27 @@ xhci_check_transfer (grub_usb_controller_t dev,
   (void)xhci;
   (void)actual;
 
-  grub_dprintf ("xhci", "xhci_check_transfer enter\n");
+  xhci_trace ("xhci_check_transfer enter\n");
   return GRUB_USB_ERR_NONE;
 #if 0
   grub_uint32_t token, token_ftd;
 
   sync_all_caches (xhci);
 
-  grub_dprintf ("xhci",
+  xhci_trace (
 		"check_transfer: xHCI STATUS=%08x, cdata=%p, qh=%p\n",
 		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBSTS),
 		cdata, cdata->qh_virt);
-  grub_dprintf ("xhci", "check_transfer: qh_hptr=%08x, ep_char=%08x\n",
+  xhci_trace ("check_transfer: qh_hptr=%08x, ep_char=%08x\n",
 		grub_le_to_cpu32 (cdata->qh_virt->qh_hptr),
 		grub_le_to_cpu32 (cdata->qh_virt->ep_char));
-  grub_dprintf ("xhci", "check_transfer: ep_cap=%08x, td_current=%08x\n",
+  xhci_trace ("check_transfer: ep_cap=%08x, td_current=%08x\n",
 		grub_le_to_cpu32 (cdata->qh_virt->ep_cap),
 		grub_le_to_cpu32 (cdata->qh_virt->td_current));
-  grub_dprintf ("xhci", "check_transfer: next_td=%08x, alt_next_td=%08x\n",
+  xhci_trace ("check_transfer: next_td=%08x, alt_next_td=%08x\n",
 		grub_le_to_cpu32 (cdata->qh_virt->td_overlay.next_td),
 		grub_le_to_cpu32 (cdata->qh_virt->td_overlay.alt_next_td));
-  grub_dprintf ("xhci", "check_transfer: token=%08x, buffer[0]=%08x\n",
+  xhci_trace ("check_transfer: token=%08x, buffer[0]=%08x\n",
 		grub_le_to_cpu32 (cdata->qh_virt->td_overlay.token),
 		grub_le_to_cpu32 (cdata->qh_virt->td_overlay.buffer_page[0]));
 
@@ -1194,7 +1249,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
 {
   (void)dev;
   (void)transfer;
-  grub_dprintf ("xhci", "xhci_setup_transfer enter\n");
+  xhci_trace ("xhci_setup_transfer enter\n");
   /* pretend we managed to start sending data */
   return GRUB_USB_ERR_NONE;
 
@@ -1213,7 +1268,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
   if ((status & GRUB_XHCI_ST_HC_HALTED) != 0)
     /* XXX: Fix it: Currently we don't do anything to restart xHCI */
     {
-      grub_dprintf ("xhci", "setup_transfer: halted, status = 0x%x\n",
+      xhci_trace ("setup_transfer: halted, status = 0x%x\n",
 		    status);
       return GRUB_USB_ERR_INTERNAL;
     }
@@ -1222,7 +1277,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
        & (GRUB_XHCI_ST_AS_STATUS | GRUB_XHCI_ST_PS_STATUS)) == 0)
     /* XXX: Fix it: Currently we don't do anything to restart xHCI */
     {
-      grub_dprintf ("xhci", "setup_transfer: no AS/PS, status = 0x%x\n",
+      xhci_trace ("setup_transfer: no AS/PS, status = 0x%x\n",
 		    status);
       return GRUB_USB_ERR_INTERNAL;
     }
@@ -1237,7 +1292,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
   cdata->qh_virt = 0; //grub_xhci_find_qh (xhci, transfer);
   if (!cdata->qh_virt)
     {
-      grub_dprintf ("xhci", "setup_transfer: no QH\n");
+      xhci_trace ("setup_transfer: no QH\n");
       grub_free (cdata);
       return GRUB_USB_ERR_INTERNAL;
     }
@@ -1247,7 +1302,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
   cdata->td_alt_virt = 0; //grub_xhci_alloc_td (xhci);
   if (!cdata->td_alt_virt)
     {
-      grub_dprintf ("xhci", "setup_transfer: no TDs\n");
+      xhci_trace ("setup_transfer: no TDs\n");
       grub_free (cdata);
       return GRUB_USB_ERR_INTERNAL;
     }
@@ -1274,7 +1329,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
 	    grub_xhci_free_tds (xhci, cdata->td_first_virt, NULL, &actual);
 
 	  grub_free (cdata);
-	  grub_dprintf ("xhci", "setup_transfer: no TD\n");
+	  xhci_trace ("setup_transfer: no TD\n");
 	  return GRUB_USB_ERR_INTERNAL;
 	}
 
@@ -1296,12 +1351,12 @@ xhci_setup_transfer (grub_usb_controller_t dev,
   /* Last TD should not have set alternate TD */
   cdata->td_last_virt->alt_next_td = grub_cpu_to_le32_compile_time (GRUB_XHCI_TERMINATE);
 
-  grub_dprintf ("xhci", "setup_transfer: cdata=%p, qh=%p\n",
+  xhci_trace ("setup_transfer: cdata=%p, qh=%p\n",
 		cdata,cdata->qh_virt);
-  grub_dprintf ("xhci", "setup_transfer: td_first=%p, td_alt=%p\n",
+  xhci_trace ("setup_transfer: td_first=%p, td_alt=%p\n",
 		cdata->td_first_virt,
 		cdata->td_alt_virt);
-  grub_dprintf ("xhci", "setup_transfer: td_last=%p\n",
+  xhci_trace ("setup_transfer: td_last=%p\n",
 		cdata->td_last_virt);
 
   /* Start transfer: */
@@ -1334,7 +1389,7 @@ xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
   struct grub_usb_controller dev;
   (void)dev;
 
-  grub_dprintf ("xhci", "xhci_iterate enter\n");
+  xhci_trace ("xhci_iterate enter\n");
   for (xhci = xhci_list; xhci; xhci = xhci->next)
     {
       dev.data = xhci;
@@ -1398,7 +1453,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
     if (usblegsup & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
       {
         grub_boot_time ("Taking ownership of xHCI controller");
-        grub_dprintf ("xhci",
+        xhci_trace (
                       "xHCI grub_xhci_pci_iter: xHCI owned by: BIOS\n");
         /* Ownership change - set OS_OWNED bit */
         grub_pci_write (pciaddr_eecp, usblegsup | GRUB_XHCI_USBLEGSUP_OS_OWNED);
@@ -1413,7 +1468,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
                && (grub_get_time_ms () < maxtime));
         if (grub_pci_read (pciaddr_eecp) & GRUB_XHCI_USBLEGSUP_BIOS_OWNED)
           {
-            grub_dprintf ("xhci",
+            xhci_trace (
                           "xHCI grub_xhci_pci_iter: xHCI change ownership timeout");
             /* Change ownership in "hard way" - reset BIOS ownership */
             grub_pci_write (pciaddr_eecp, GRUB_XHCI_USBLEGSUP_OS_OWNED);
@@ -1423,10 +1478,10 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
       }
     else if (usblegsup & GRUB_XHCI_USBLEGSUP_OS_OWNED)
       /* XXX: What to do in this case - nothing ? Can it happen ? */
-      grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: xHCI owned by: OS\n");
+      xhci_trace ("xHCI grub_xhci_pci_iter: xHCI owned by: OS\n");
     else
       {
-        grub_dprintf ("xhci",
+        xhci_trace (
                       "xHCI grub_xhci_pci_iter: xHCI owned by: NONE\n");
         /* XXX: What to do in this case ? Can it happen ?
          * Is code below correct ? */
@@ -1443,7 +1498,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
     grub_pci_read (pciaddr_eecp);
   }
 
-  grub_dprintf ("xhci", "inithw: xHCI grub_xhci_pci_iter: ownership OK\n");
+  xhci_trace ("inithw: xHCI grub_xhci_pci_iter: ownership OK\n");
 
   /* Now we can setup xHCI (maybe...) */
 
@@ -1455,7 +1510,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
       goto fail;
     }
 
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: halted OK\n");
+  xhci_trace ("xHCI grub_xhci_pci_iter: halted OK\n");
 
   /* Reset xHCI */
   if (grub_xhci_reset (xhci) != GRUB_USB_ERR_NONE)
@@ -1465,7 +1520,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
       goto fail;
     }
 
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: reset OK\n");
+  xhci_trace ("xHCI grub_xhci_pci_iter: reset OK\n");
 
   /* Now should be possible to power-up and enumerate ports etc. */
   if ((grub_xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
@@ -1498,14 +1553,14 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
 
   sync_all_caches (xhci);
 
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: OK at all\n");
+  xhci_trace ("xHCI grub_xhci_pci_iter: OK at all\n");
 
-  grub_dprintf ("xhci",
+  xhci_trace (
 		"xHCI grub_xhci_pci_iter: iobase of oper. regs: %08x\n",
 		((unsigned int)xhci->iobase_oper));
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: USBCMD: %08x\n",
+  xhci_trace ("xHCI grub_xhci_pci_iter: USBCMD: %08x\n",
 		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
-  grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: USBSTS: %08x\n",
+  xhci_trace ("xHCI grub_xhci_pci_iter: USBSTS: %08x\n",
 		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBSTS));
 
 #endif
@@ -1563,7 +1618,7 @@ static unsigned long pci_bar ( struct grub_pci_device *dev, unsigned int reg ) {
           }
         else
           {
-            grub_dprintf ("xhci", "unhandled 64-bit BAR\n");
+            xhci_trace ("unhandled 64-bit BAR\n");
             return GRUB_PCI_ADDR_MEM_TYPE_64;
           }
         }
@@ -1621,7 +1676,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
   if (class_code != 0x0c0330)
     return 0;
 
-  grub_dprintf ("xhci", "found xHCI controller on bus %d device %d "
+  xhci_trace ("found xHCI controller on bus %d device %d "
       "function %d: device|vendor ID 0x%08x\n", dev.bus, dev.device,
       dev.function, pciid);
 
@@ -1635,13 +1690,13 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
   if (((base & GRUB_PCI_ADDR_MEM_TYPE_MASK) != GRUB_PCI_ADDR_MEM_TYPE_32)
       && (base_h != 0))
     {
-      grub_dprintf ("xhci", "registers above 4G are not supported\n");
+      xhci_trace ("registers above 4G are not supported\n");
       return 0;
     }
   base &= GRUB_PCI_ADDR_MEM_MASK;
   if (!base)
     {
-      grub_dprintf ("xhci", "xHCI is not mapped (broken PC firmware)\n");
+      xhci_trace ("xHCI is not mapped (broken PC firmware)\n");
       return 0;
     }
 
@@ -1652,19 +1707,19 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
     		  | GRUB_PCI_COMMAND_BUS_MASTER
     		  | grub_pci_read_word(addr));
 
-  grub_dprintf ("ehci", "xHCI 32-bit MMIO regs OK\n");
+  xhci_trace ("xHCI 32-bit MMIO regs OK\n");
 
   mmio_base_addr = grub_pci_device_map_range (dev,
       (base & GRUB_XHCI_ADDR_MEM_MASK),
       0x100); /* PCI config space is 256 bytes */
 
-  grub_dprintf ("xhci", "Start of MMIO area (BAR0): 0x%08x\n",
+  xhci_trace ("Start of MMIO area (BAR0): 0x%08x\n",
       (unsigned int)mmio_base_addr);
 
   xhci = grub_malloc (sizeof (*xhci));
   if (!xhci)
     {
-      grub_dprintf ("xhci", "out of memory\n");
+      xhci_trace ("out of memory\n");
       return GRUB_USB_ERR_INTERNAL;
     }
 
@@ -1697,7 +1752,7 @@ static struct grub_usb_controller_dev usb_controller_dev = {
 
 GRUB_MOD_INIT (xhci)
 {
-  grub_dprintf ("xhci", "[loading]\n");
+  xhci_trace ("[loading]\n");
 
   /* TODO: anything to compile time check? */
   //COMPILE_TIME_ASSERT (sizeof (struct grub_xhci_FOO) == 64);
@@ -1709,15 +1764,15 @@ GRUB_MOD_INIT (xhci)
   grub_boot_time ("Registering xHCI driver");
   grub_usb_controller_dev_register (&usb_controller_dev);
   grub_boot_time ("xHCI driver registered");
-  grub_dprintf ("xhci", "xHCI driver is registered, register preboot hook\n");
+  xhci_trace ("xHCI driver is registered, register preboot hook\n");
   grub_loader_register_preboot_hook (grub_xhci_fini_hw, grub_xhci_restore_hw,
 				     GRUB_LOADER_PREBOOT_HOOK_PRIO_DISK);
-  grub_dprintf ("xhci", "GRUB_MOD_INIT completed\n");
+  xhci_trace ("GRUB_MOD_INIT completed\n");
 }
 
 GRUB_MOD_FINI (xhci)
 {
-  grub_dprintf ("xhci", "[unloading]\n");
+  xhci_trace ("[unloading]\n");
   grub_xhci_fini_hw (0);
   grub_usb_controller_dev_unregister (&usb_controller_dev);
 }
