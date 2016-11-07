@@ -39,84 +39,22 @@
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
-/* Host Controller Capability Registers. Section 5.3 in [spec]. */
-enum
-{
-  GRUB_XHCI_CAP_CAPLENGTH  = 0x00, /* 1 byte */
-  /* 1 byte reserved */
-  GRUB_XHCI_CAP_HCIVERSION = 0x02, /* 2 bytes */
-  GRUB_XHCI_CAP_HCSPARAMS1 = 0x04, /* 4 bytes */
-  GRUB_XHCI_CAP_HCSPARAMS2 = 0x08, /* 4 bytes */
-  GRUB_XHCI_CAP_HCSPARAMS3 = 0x0c, /* 4 bytes */
-  GRUB_XHCI_CAP_HCCPARAMS1 = 0x10, /* 4 bytes */
-  GRUB_XHCI_CAP_DBOFF      = 0x14, /* 4 bytes */
-  GRUB_XHCI_CAP_RTSOFF     = 0x18, /* 4 bytes */
-  GRUB_XHCI_CAP_HCCPARAMS2 = 0x1c, /* 4 bytes */
-  /* (CAPLENGTH - 0x20) bytes reserved */
-};
-
-/* Host Controller Operational Registers. Section 5.4 in [spec]. */
-enum
-{
-  GRUB_XHCI_OPER_USBCMD   = 0x00,
-  GRUB_XHCI_OPER_USBSTS   = 0x04,
-  GRUB_XHCI_OPER_PAGESIZE = 0x08,
-  /* 0x0c - 0x13 reserved */
-  GRUB_XHCI_OPER_DNCTRL   = 0x14,
-  GRUB_XHCI_OPER_CRCR     = 0x18,
-  /* 0x20 - 0x2f reserved */
-  GRUB_XHCI_OPER_DCBAAP   = 0x30,
-  GRUB_XHCI_OPER_CONFIG   = 0x38,
-  /* 0x3c - 0x3ff reserved */
-  /* 0x400 - 0x13ff Port Register Set 1-MaxPorts */
-};
-
 /* USB Command Register (USBCMD) bits. Section 5.4.1 in [spec]. */
 enum
 {
-  GRUB_XHCI_OPER_USBCMD_RUNSTOP    = (1 <<  0),
-  GRUB_XHCI_OPER_USBCMD_HCRST      = (1 <<  1), /* host controller reset */
-  GRUB_XHCI_OPER_USBCMD_INTE       = (1 <<  2), /* interrupter enable */
-  GRUB_XHCI_OPER_USBCMD_HSEE       = (1 <<  3), /* host system error enable */
+  XHCI_OPER_USBCMD_RUNSTOP = (1 <<  0),
+  XHCI_OPER_USBCMD_HCRST   = (1 <<  1), /* host controller reset */
+  XHCI_OPER_USBCMD_INTE    = (1 <<  2), /* interrupter enable */
+  XHCI_OPER_USBCMD_HSEE    = (1 <<  3), /* host system error enable */
   /* bit 6:4 reserved */
-  GRUB_XHCI_OPER_USBCMD_LHCRST     = (1 <<  7), /* light host controller reset */
-  GRUB_XHCI_OPER_USBCMD_CSS        = (1 <<  8), /* controller save state */
-  GRUB_XHCI_OPER_USBCMD_CRS        = (1 <<  9), /* controller restore state */
-  GRUB_XHCI_OPER_USBCMD_EWE        = (1 << 10), /* enable wrap event */
+  XHCI_OPER_USBCMD_LHCRST  = (1 <<  7), /* light host controller reset */
+  XHCI_OPER_USBCMD_CSS     = (1 <<  8), /* controller save state */
+  XHCI_OPER_USBCMD_CRS     = (1 <<  9), /* controller restore state */
+  XHCI_OPER_USBCMD_EWE     = (1 << 10), /* enable wrap event */
   /* ... */
 };
 
 /* USB Status Register (USBSTS) bits. Section 5.4.2 in [spec]. */
-enum
-{
-  GRUB_XHCI_USBSTS_HCH  = (1 <<  0), /* host controller halted */
-  /* reserved */
-  GRUB_XHCI_USBSTS_HSE  = (1 <<  2), /* host system error */
-  GRUB_XHCI_USBSTS_EINT = (1 <<  3), /* event interrupt */
-  GRUB_XHCI_USBSTS_PCD  = (1 <<  4), /* port change detect */
-  /* 7:5 reserved */
-  GRUB_XHCI_USBSTS_SSS  = (1 <<  8), /* save state status */
-  GRUB_XHCI_USBSTS_RSS  = (1 <<  9), /* restore state status */
-  GRUB_XHCI_USBSTS_SRE  = (1 << 10), /* save/restore error */
-  GRUB_XHCI_USBSTS_CNR  = (1 << 11), /* controller not ready */
-  GRUB_XHCI_USBSTS_HCE  = (1 << 12), /* host controller error */
-  /* 31:13 reserved */
-};
-
-/* Offset relative to Operational Base */
-#define GRUB_XHCI_PORTSC(port) (0x400 + (0x10 * (port - 1)))
-
-#define GRUB_XHCI_ADDR_MEM_MASK	(~0xff)
-#define GRUB_XHCI_POINTER_MASK	(~0x1f)
-
-/* USB Legacy Support Capability (USBLEGSUP) bits. Section 7.1.1 in [spec]. */
-enum
-{
-  GRUB_XHCI_USBLEGSUP_BIOS_OWNED = (1 << 16),
-  GRUB_XHCI_USBLEGSUP_OS_OWNED = (1 << 24)
-};
-
-/* Operational register USBSTS bits */
 enum
 {
   XHCI_USBSTS_HCH  = (1 <<  0), /* HCHalted */
@@ -131,6 +69,20 @@ enum
   XHCI_USBSTS_CNR  = (1 << 11), /* Controller Not Ready */
   XHCI_USBSTS_HCE  = (1 << 12), /* Host Controller Error */
   /* RsvdZ */
+};
+
+
+/* Offset relative to Operational Base */
+#define GRUB_XHCI_PORTSC(port) (0x400 + (0x10 * (port - 1)))
+
+#define GRUB_XHCI_ADDR_MEM_MASK	(~0xff)
+#define GRUB_XHCI_POINTER_MASK	(~0x1f)
+
+/* USB Legacy Support Capability (USBLEGSUP) bits. Section 7.1.1 in [spec]. */
+enum
+{
+  GRUB_XHCI_USBLEGSUP_BIOS_OWNED = (1 << 16),
+  GRUB_XHCI_USBLEGSUP_OS_OWNED = (1 << 24)
 };
 
 
@@ -265,15 +217,6 @@ enum
 #define GRUB_XHCI_BUFPAGELEN     0x1000
 #define GRUB_XHCI_MAXBUFLEN      0x5000
 
-
-/** Capability register length */
-#define XHCI_CAP_CAPLENGTH 0x00
-
-/** Host controller interface version number */
-#define XHCI_CAP_HCIVERSION 0x02
-
-/** Structural parameters 1 */
-#define XHCI_CAP_HCSPARAMS1 0x04
 
 /** Number of device slots */
 #define XHCI_HCSPARAMS1_SLOTS(params) ( ( (params) >> 0 ) & 0xff )
@@ -637,7 +580,7 @@ grub_xhci_halt (struct grub_xhci *xhci)
   //if (is_halted == 0)
   //  {
   //    grub_xhci_oper_write32 (xhci, GRUB_XHCI_OPER_USBCMD,
-  //      		      ~GRUB_XHCI_OPER_USBCMD_RUNSTOP
+  //      		      ~XHCI_OPER_USBCMD_RUNSTOP
   //      		      & grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
   //    /* Ensure command is written */
   //    grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD);
@@ -665,17 +608,17 @@ grub_xhci_reset (struct grub_xhci *xhci)
   //sync_all_caches (xhci);
 
   //grub_xhci_oper_write32 (xhci, GRUB_XHCI_OPER_USBCMD,
-  //      		  GRUB_XHCI_OPER_USBCMD_HCRST
+  //      		  XHCI_OPER_USBCMD_HCRST
   //      		  | grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
   ///* Ensure command is written */
   //grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD);
   ///* XXX: How long time could take reset of HC ? */
   //maxtime = grub_get_time_ms () + 16000;
   //while (((grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD)
-  //         & GRUB_XHCI_OPER_USBCMD_HCRST) != 0)
+  //         & XHCI_OPER_USBCMD_HCRST) != 0)
   //       && (grub_get_time_ms () < maxtime));
   //if ((grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD)
-  //     & GRUB_XHCI_OPER_USBCMD_HCRST) != 0)
+  //     & XHCI_OPER_USBCMD_HCRST) != 0)
   //  return GRUB_USB_ERR_TIMEOUT;
 
   return GRUB_USB_ERR_NONE;
@@ -787,7 +730,7 @@ grub_xhci_restore_hw (void)
 
       /* Setup some xHCI registers and enable xHCI */
 //      grub_xhci_oper_write32 (xhci, GRUB_XHCI_OPER_USBCMD,
-//			      GRUB_XHCI_OPER_USBCMD_RUNSTOP |
+//			      XHCI_OPER_USBCMD_RUNSTOP |
 //			      grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
 
       /* Now should be possible to power-up and enumerate ports etc. */
@@ -1628,7 +1571,7 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
 
   /* Enable xHCI */
   grub_xhci_oper_write32 (xhci, GRUB_XHCI_OPER_USBCMD,
-			  GRUB_XHCI_OPER_USBCMD_RUNSTOP
+			  XHCI_OPER_USBCMD_RUNSTOP
 			  | grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
 
   /* Ensure command is written */
