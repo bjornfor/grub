@@ -808,7 +808,6 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
 {
   struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
   grub_uint32_t status, line_state;
-  grub_uint32_t is_connected;
 
   (void)port;
   (void)changed;
@@ -846,11 +845,10 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
       , portsc & XHCI_PORTSC_WPR ? " WPR" : ""
       );
 
-  is_connected = xhci_read_portrs (xhci, port, PORTSC) & 1;
-  if (is_connected)
+  if (portsc & XHCI_PORTSC_CCS)
   {
-    //grub_dprintf ("xhci", "IS CONNECTED!!!!\n");
-    //grub_millisleep (10000);
+    grub_dprintf ("xhci", "IS CONNECTED!!!!\n");
+    grub_millisleep (10000);
   }
 
   grub_millisleep (1000);
