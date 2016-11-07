@@ -399,7 +399,7 @@ struct xhci_doorbell_regs {
   volatile grub_uint32_t doorbell[MAX_DOORBELL_ENTRIES];
 };
 
-struct grub_xhci
+struct xhci
 {
   volatile struct xhci_cap_regs *cap_regs;
   volatile struct xhci_oper_regs *oper_regs;
@@ -412,7 +412,7 @@ struct grub_xhci
   grub_uint8_t max_ports;
 
   /* linked list */
-  struct grub_xhci *next;
+  struct xhci *next;
 
 
   /* DEPRECATED STUFF BELOW */
@@ -433,11 +433,11 @@ struct grub_xhci
   //unsigned int reset;
 };
 
-static struct grub_xhci *xhci_list;
+static struct xhci *xhci_list;
 
 /* xHCI capability registers access functions */
 static inline grub_uint32_t
-grub_xhci_cap_read32 (struct grub_xhci *xhci, grub_uint32_t off)
+xhci_cap_read32 (struct xhci *xhci, grub_uint32_t off)
 {
   return grub_le_to_cpu32 (*((volatile grub_uint32_t *) xhci->cap +
 		       (off / sizeof (grub_uint32_t))));
@@ -501,7 +501,7 @@ enum xhci_portrs_type
 
 /* Read Port Register Set n of given type */
 static inline grub_uint32_t
-xhci_read_portrs(struct grub_xhci *xhci, unsigned int port, enum xhci_portrs_type type)
+xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci_portrs_type type)
 {
   grub_uint8_t *addr;
 
@@ -516,7 +516,7 @@ xhci_read_portrs(struct grub_xhci *xhci, unsigned int port, enum xhci_portrs_typ
 }
 
 static int
-grub_xhci_dump_cap(struct grub_xhci *xhci)
+xhci_dump_cap(struct xhci *xhci)
 {
   xhci_trace ("CAPLENGTH=%d\n",
       mmio_read8 (&xhci->cap_regs->caplength));
@@ -549,7 +549,7 @@ grub_xhci_dump_cap(struct grub_xhci *xhci)
 }
 
 static void
-grub_xhci_dump_oper_portsc(struct grub_xhci *xhci, int port)
+xhci_dump_oper_portsc(struct xhci *xhci, int port)
 {
   grub_uint32_t portsc;
 
@@ -582,7 +582,7 @@ grub_xhci_dump_oper_portsc(struct grub_xhci *xhci, int port)
 }
 
 static int
-grub_xhci_dump_oper(struct grub_xhci *xhci)
+xhci_dump_oper(struct xhci *xhci)
 {
   int i;
   grub_uint32_t val32;
@@ -625,7 +625,7 @@ grub_xhci_dump_oper(struct grub_xhci *xhci)
   grub_printf ("PORTSC registers:\n");
   for (i = 0; i < xhci->max_ports; i++)
   {
-    grub_xhci_dump_oper_portsc(xhci, i);
+    xhci_dump_oper_portsc(xhci, i);
     if ((i+1) % 5 == 0)
     {
       grub_printf ("\n");
@@ -638,7 +638,7 @@ grub_xhci_dump_oper(struct grub_xhci *xhci)
 
 /* Halt if xHCI HC not halted */
 static grub_usb_err_t
-grub_xhci_halt (struct grub_xhci *xhci)
+xhci_halt (struct xhci *xhci)
 {
   grub_uint64_t maxtime;
   unsigned int is_halted;
@@ -668,11 +668,11 @@ grub_xhci_halt (struct grub_xhci *xhci)
 
 /* xHCI HC reset */
 static grub_usb_err_t
-grub_xhci_reset (struct grub_xhci *xhci)
+xhci_reset (struct xhci *xhci)
 {
   grub_uint64_t maxtime;
 
-  xhci_trace ("grub_xhci_reset enter\n");
+  xhci_trace ("xhci_reset enter\n");
 
   //sync_all_caches (xhci);
 
@@ -695,7 +695,7 @@ grub_xhci_reset (struct grub_xhci *xhci)
 #if 0
 
 static void
-sync_all_caches (struct grub_xhci *xhci)
+sync_all_caches (struct xhci *xhci)
 {
   (void)xhci;
   xhci_trace("sync_all_caches enter\n");
@@ -714,46 +714,9 @@ sync_all_caches (struct grub_xhci *xhci)
 #endif
 }
 
-static inline grub_uint16_t
-grub_xhci_cap_read16 (struct grub_xhci *xhci, grub_uint32_t addr)
-{
-  return
-    grub_le_to_cpu16 (*((volatile grub_uint16_t *) xhci->iobase_cap +
-		       (addr / sizeof (grub_uint16_t))));
-}
-
-static inline grub_uint8_t
-grub_xhci_cap_read8 (struct grub_xhci *xhci, grub_uint32_t addr)
-{
-  return *((volatile grub_uint8_t *) xhci->iobase_cap + addr);
-}
-
-/* Operational registers access functions */
-static inline grub_uint32_t
-grub_xhci_oper_read32 (struct grub_xhci *xhci, grub_uint32_t addr)
-{
-  return
-    grub_le_to_cpu32 (*
-		      ((volatile grub_uint32_t *) xhci->iobase_oper +
-		       (addr / sizeof (grub_uint32_t))));
-}
 
 static inline void
-grub_xhci_oper_write32 (struct grub_xhci *xhci, grub_uint32_t addr,
-			grub_uint32_t value)
-{
-  *((volatile grub_uint32_t *) xhci->iobase_oper + (addr / sizeof (grub_uint32_t))) =
-    grub_cpu_to_le32 (value);
-}
-
-static inline grub_uint32_t
-grub_xhci_port_read (struct grub_xhci *xhci, grub_uint32_t port)
-{
-  return grub_xhci_oper_read32 (xhci, GRUB_XHCI_PORTSC(port));
-}
-
-static inline void
-grub_xhci_port_resbits (struct grub_xhci *xhci, grub_uint32_t port,
+grub_xhci_port_resbits (struct xhci *xhci, grub_uint32_t port,
 			grub_uint32_t bits)
 {
   grub_xhci_oper_write32 (xhci, GRUB_XHCI_PORTSC(port),
@@ -764,7 +727,7 @@ grub_xhci_port_resbits (struct grub_xhci *xhci, grub_uint32_t port,
 }
 
 static inline void
-grub_xhci_port_setbits (struct grub_xhci *xhci, grub_uint32_t port,
+grub_xhci_port_setbits (struct xhci *xhci, grub_uint32_t port,
 			grub_uint32_t bits)
 {
   grub_xhci_oper_write32 (xhci, GRUB_XHCI_PORTSC(port),
@@ -777,9 +740,9 @@ grub_xhci_port_setbits (struct grub_xhci *xhci, grub_uint32_t port,
 #endif
 
 static grub_err_t
-grub_xhci_restore_hw (void)
+xhci_restore_hw (void)
 {
-  struct grub_xhci *xhci;
+  struct xhci *xhci;
   //grub_uint32_t n_ports;
   //int i;
 
@@ -788,11 +751,11 @@ grub_xhci_restore_hw (void)
   for (xhci = xhci_list; xhci; xhci = xhci->next)
     {
       /* Check if xHCI is halted and halt it if not */
-      if (grub_xhci_halt (xhci) != GRUB_USB_ERR_NONE)
+      if (xhci_halt (xhci) != GRUB_USB_ERR_NONE)
 	grub_error (GRUB_ERR_TIMEOUT, "restore_hw: xHCI halt timeout");
 
       /* Reset xHCI */
-      if (grub_xhci_reset (xhci) != GRUB_USB_ERR_NONE)
+      if (xhci_reset (xhci) != GRUB_USB_ERR_NONE)
 	grub_error (GRUB_ERR_TIMEOUT, "restore_hw: xHCI reset timeout");
 
       /* Setup some xHCI registers and enable xHCI */
@@ -808,9 +771,9 @@ grub_xhci_restore_hw (void)
 }
 
 static grub_err_t
-grub_xhci_fini_hw (int noreturn __attribute__ ((unused)))
+xhci_fini_hw (int noreturn __attribute__ ((unused)))
 {
-  struct grub_xhci *xhci;
+  struct xhci *xhci;
 
   xhci_trace ("grub_xhci_fini_hw enter\n");
 
@@ -836,7 +799,7 @@ static grub_usb_err_t
 xhci_cancel_transfer (grub_usb_controller_t dev,
 			   grub_usb_transfer_t transfer)
 {
-  struct grub_xhci *xhci = dev->data;
+  struct xhci *xhci = dev->data;
   struct grub_xhci_transfer_controller_data *cdata =
     transfer->controller_data;
   (void)cdata;
@@ -955,7 +918,7 @@ xhci_cancel_transfer (grub_usb_controller_t dev,
 static grub_usb_speed_t
 xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
 {
-  struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
+  struct xhci *xhci = (struct xhci *) dev->data;
   grub_uint32_t status, line_state;
 
   (void)port;
@@ -967,7 +930,7 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   grub_uint32_t portsc;
 
   xhci_trace ("xhci_detect_dev port=%d\n", port);
-  grub_xhci_dump_oper_portsc(xhci, port);
+  xhci_dump_oper_portsc(xhci, port);
   portsc = xhci_read_portrs (xhci, port, PORTSC);
   if (portsc & XHCI_PORTSC_CCS)
   {
@@ -1078,7 +1041,7 @@ xhci_portstatus (grub_usb_controller_t dev,
   return GRUB_USB_ERR_NONE;
 
 #if 0
-  struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
+  struct xhci *xhci = (struct xhci *) dev->data;
   grub_uint64_t endtime;
 
   xhci_trace ("portstatus: xHCI USBSTS: %08x\n",
@@ -1092,7 +1055,7 @@ xhci_portstatus (grub_usb_controller_t dev,
    * - if enable==true we will do the reset and the specification says
    *   PortEnable should be FALSE in such case */
   /* Disable the port and wait for it. */
-  grub_xhci_cap_read32 (xhci, GRUB_XHCI_PORTSC(port));
+  xhci_cap_read32 (xhci, GRUB_XHCI_PORTSC(port));
   endtime = grub_get_time_ms () + 1000;
   while (grub_xhci_port_read (xhci, port) & GRUB_XHCI_PORT_ENABLED)
     if (grub_get_time_ms () > endtime)
@@ -1156,7 +1119,7 @@ xhci_portstatus (grub_usb_controller_t dev,
 static int
 xhci_hubports (grub_usb_controller_t dev)
 {
-  struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
+  struct xhci *xhci = (struct xhci *) dev->data;
   unsigned int nports = 0;
 
   nports = xhci->max_ports;
@@ -1172,7 +1135,7 @@ static grub_usb_err_t
 xhci_check_transfer (grub_usb_controller_t dev,
 			  grub_usb_transfer_t transfer, grub_size_t * actual)
 {
-  struct grub_xhci *xhci = dev->data;
+  struct xhci *xhci = dev->data;
   struct grub_xhci_transfer_controller_data *cdata =
     transfer->controller_data;
   (void)cdata;
@@ -1254,7 +1217,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
   return GRUB_USB_ERR_NONE;
 
 #if 0
-  struct grub_xhci *xhci = (struct grub_xhci *) dev->data;
+  struct xhci *xhci = (struct xhci *) dev->data;
   grub_xhci_td_t td = NULL;
   grub_xhci_td_t td_prev = NULL;
   int i;
@@ -1385,7 +1348,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
 static int
 xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
 {
-  struct grub_xhci *xhci;
+  struct xhci *xhci;
   struct grub_usb_controller dev;
   (void)dev;
 
@@ -1401,7 +1364,7 @@ xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
 }
 
 static int
-grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
+xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
 {
   grub_int32_t hcsparams1;
   //grub_uint32_t hcsparams2;
@@ -1422,8 +1385,8 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
   xhci->max_ports = (hcsparams1 >> 24) & 0xff;
   mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_OPER_USBCMD_RUNSTOP);
 
-  grub_xhci_dump_cap(xhci);
-  grub_xhci_dump_oper(xhci);
+  xhci_dump_cap(xhci);
+  xhci_dump_oper(xhci);
 
 #if 0
 
@@ -1523,11 +1486,11 @@ grub_xhci_init (struct grub_xhci *xhci, volatile void *mmio_base_addr)
   xhci_trace ("xHCI grub_xhci_pci_iter: reset OK\n");
 
   /* Now should be possible to power-up and enumerate ports etc. */
-  if ((grub_xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
+  if ((xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
        & GRUB_XHCI_SPARAMS_PPC) != 0)
     {				/* xHCI has port powering control */
       /* Power on all ports */
-      n_ports = grub_xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
+      n_ports = xhci_cap_read32 (xhci, GRUB_XHCI_EHCC_SPARAMS)
 	& GRUB_XHCI_SPARAMS_N_PORTS;
       for (i = 0; i < (int) n_ports; i++)
 	grub_xhci_oper_write32 (xhci, GRUB_XHCI_PORTSC(port),
@@ -1658,12 +1621,12 @@ static unsigned long pci_bar_start ( struct grub_pci_device *dev, unsigned int r
 
 /* PCI iteration function... */
 static int
-grub_xhci_pci_iter (grub_pci_device_t dev,
+xhci_pci_iter (grub_pci_device_t dev,
                     grub_pci_id_t pciid __attribute__ ((unused)),
 		    void *data __attribute__ ((unused)))
 {
   int err;
-  struct grub_xhci *xhci;
+  struct xhci *xhci;
   grub_uint32_t class_code;
   grub_uint32_t addr;
   grub_uint32_t base;
@@ -1723,7 +1686,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev,
       return GRUB_USB_ERR_INTERNAL;
     }
 
-  err = grub_xhci_init (xhci, mmio_base_addr);
+  err = xhci_init (xhci, mmio_base_addr);
   if (err)
   {
     grub_free(xhci);
@@ -1763,12 +1726,12 @@ GRUB_MOD_INIT (xhci)
   xhci_trace ("[loading]\n");
   grub_stop_disk_firmware ();
   grub_boot_time ("Initing xHCI hardware");
-  grub_pci_iterate (grub_xhci_pci_iter, NULL);
+  grub_pci_iterate (xhci_pci_iter, NULL);
   grub_boot_time ("Registering xHCI driver");
   grub_usb_controller_dev_register (&usb_controller_dev);
   grub_boot_time ("xHCI driver registered");
   xhci_trace ("xHCI driver is registered, register preboot hook\n");
-  grub_loader_register_preboot_hook (grub_xhci_fini_hw, grub_xhci_restore_hw,
+  grub_loader_register_preboot_hook (xhci_fini_hw, xhci_restore_hw,
 				     GRUB_LOADER_PREBOOT_HOOK_PRIO_DISK);
   xhci_trace ("GRUB_MOD_INIT completed\n");
 }
@@ -1776,6 +1739,6 @@ GRUB_MOD_INIT (xhci)
 GRUB_MOD_FINI (xhci)
 {
   xhci_trace ("[unloading]\n");
-  grub_xhci_fini_hw (0);
+  xhci_fini_hw (0);
   grub_usb_controller_dev_unregister (&usb_controller_dev);
 }
