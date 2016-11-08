@@ -863,14 +863,18 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   grub_uint32_t portsc;
 
   xhci_trace ("xhci_detect_dev port=%d\n", port);
-  xhci_dump_oper_portsc(xhci, port);
+  if (debug_enabled())
+  {
+    xhci_dump_oper_portsc(xhci, port);
+  }
   portsc = xhci_read_portrs (xhci, port, PORTSC);
   if (portsc & XHCI_PORTSC_CCS)
   {
     grub_printf ("xHCI port %d IS CONNECTED!!!\n", port);
   }
 
-  grub_millisleep (1000);
+  if (debug_enabled())
+    grub_millisleep (1000);
 
   switch (state) {
     case 0:
