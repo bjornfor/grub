@@ -81,7 +81,7 @@ enum
   /* RsvdZ */
 };
 
-/* Command Ring Control Register (CRCR). Sectin 5.4.5 in [spec]. */
+/* Command Ring Control Register (CRCR). Section 5.4.5 in [spec]. */
 enum
 {
   XHCI_CRCR_RCS  = (1 << 0), /* Ring Cycle State */
@@ -96,6 +96,13 @@ enum
                                                   * here)
                                                   */
 };
+
+/** Maximum device slots enabled */
+#define XHCI_CONFIG_MAX_SLOTS_EN(slots) ( (slots) << 0 )
+
+/** Maximum device slots enabled mask */
+#define XHCI_CONFIG_MAX_SLOTS_EN_MASK \
+  XHCI_CONFIG_MAX_SLOTS_EN ( 0xff )
 
 /* Offset relative to Operational Base */
 #define XHCI_PORTSC(port) (0x400 + (0x10 * (port - 1)))
@@ -325,6 +332,26 @@ struct xhci_doorbell_regs {
   volatile grub_uint32_t doorbell[MAX_DOORBELL_ENTRIES];
 };
 
+/** Construct slot context device info */
+#define XHCI_SLOT_INFO(entries, hub, speed, route) \
+  (((entries) << 27) | ((hub) << 26) | ((speed) << 20) | (route))
+
+struct xhci_slot_context {
+  grub_uint32_t info;
+  grub_uint16_t max_exit_latency;
+  grub_uint8_t root_hub_port_number;
+  grub_uint8_t number_of_ports;
+  /* TODO */
+};
+
+struct xhci_foo {
+};
+
+#define NUM_DEVICE_CONTEXT_SUB_ELEMENTS 32
+struct xhci_device_context {
+  struct xhci_foo foo[NUM_DEVICE_CONTEXT_SUB_ELEMENTS];
+};
+
 struct xhci
 {
   /* Register addresses. */
@@ -333,10 +360,13 @@ struct xhci
   volatile struct xhci_run_regs *run_regs;
   volatile struct xhci_doorbell_regs *db_regs;
 
-  /* valid range 1-255 */
-  grub_uint8_t max_device_slots;
-  /* valid range 1-255 */
-  grub_uint8_t max_ports;
+  /* Cached from xHCI */
+  grub_uint8_t max_device_slots; /* valid range 1-255 */
+  grub_uint8_t max_ports; /* valid range 1-255 */
+
+  /* Other data */
+  grub_uint8_t num_enabled_slots;
+  struct grub_pci_dma_chunk *dcbaa; /* opaque pointer */
 
   /* linked list */
   struct xhci *next;
@@ -1307,6 +1337,111 @@ xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
   return 0;
 }
 
+#if 0
+/**
+ * Issue command and wait for completion
+ *
+ * @v xhci		xHCI device
+ * @v trb		Transfer request block (with empty Cycle flag)
+ * @ret rc		Return status code
+ *
+ * On a successful completion, the TRB will be overwritten with the
+ * completion.
+ */
+static int xhci_command(struct xhci *xhci, union xhci_trb *trb)
+{
+  struct xhci_trb_complete *complete = &trb->complete;
+  unsigned int i;
+  int rc;
+
+  /* Record the pending command */
+  xhci->pending = trb;
+
+  /* Enqueue the command */
+  if ( ( rc = xhci_enqueue ( &xhci->command, NULL, trb ) ) != 0 )
+    goto err_enqueue;
+
+  /* Ring the command doorbell */
+  xhci_doorbell ( &xhci->command );
+
+  /* Wait for the command to complete */
+  for ( i = 0 ; i < XHCI_COMMAND_MAX_WAIT_MS ; i++ ) {
+
+    /* Poll event ring */
+    xhci_event_poll ( xhci );
+
+    /* Check for completion */
+    if ( ! xhci->pending ) {
+      if ( complete->code != XHCI_CMPLT_SUCCESS ) {
+        rc = -ECODE ( complete->code );
+        DBGC ( xhci, "XHCI %s command failed (code "
+            "%d): %s\n", xhci->name, complete->code,
+            strerror ( rc ) );
+        DBGC_HDA ( xhci, 0, trb, sizeof ( *trb ) );
+        return rc;
+      }
+      return 0;
+    }
+
+    /* Delay */
+    mdelay ( 1 );
+  }
+
+  /* Timeout */
+  DBGC ( xhci, "XHCI %s timed out waiting for completion\n", xhci->name );
+  rc = -ETIMEDOUT;
+
+  /* Abort command */
+  xhci_abort ( xhci );
+
+err_enqueue:
+  xhci->pending = NULL;
+  return rc;
+}
+
+/**
+ * Issue NOP and wait for completion
+ *
+ * @v xhci		xHCI device
+ * @ret rc		Return status code
+ */
+static inline int xhci_nop ( struct xhci_device *xhci ) {
+	union xhci_trb trb;
+	struct xhci_trb_common *nop = &trb.common;
+	int rc;
+
+	/* Construct command */
+	memset ( nop, 0, sizeof ( *nop ) );
+	nop->flags = XHCI_TRB_IOC;
+	nop->type = XHCI_TRB_NOP_CMD;
+
+	/* Issue command and wait for completion */
+	if ( ( rc = xhci_command ( xhci, &trb ) ) != 0 )
+		return rc;
+
+	return 0;
+}
+#endif
+
+/** Allocate memory and write the address of that memory the DCBAAP register.
+ *
+ * Store a copy of the pointer in the struct xhci instance. The allocated
+ * memory must be physically contiguous, 64-byte aligned and the physical
+ * address must be written to DCBAAP.
+ */
+static int
+xhci_configure_dcbaap(struct xhci *xhci)
+{
+  grub_size_t len;
+  //struct grub_pci_dma_chunk *dcbaap;
+  const int min_align = 64;
+
+  int TODO;
+  len = xhci->num_enabled_slots * sizeof (TODO);
+  xhci->dcbaa = grub_memalign_dma32 (min_align, len);
+  return 0;
+}
+
 static int
 xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
 {
@@ -1314,6 +1449,7 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   //grub_uint32_t hcsparams2;
   //grub_uint32_t hccparams1;
   //grub_uint32_t pagesize;
+  grub_uint64_t maxtime;
 
   /* Locate capability, operational, runtime, and doorbell registers */
   xhci->cap_regs = mmio_base_addr;
@@ -1324,13 +1460,32 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   xhci->db_regs = (struct xhci_doorbell_regs *)
     ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK));
 
+  /* Paranoia: wait until controller is ready */
+  maxtime = grub_get_time_ms () + 50000;
+  while (1)
+  {
+    if (((mmio_read32(&xhci->oper_regs->usbsts) & XHCI_USBSTS_CNR) != 0) &&
+        (grub_get_time_ms () < maxtime))
+      break;
+
+    if (grub_get_time_ms () > maxtime)
+    {
+      xhci_err ("timeout waiting for USBSTS_CNR to clear\n");
+      return -1;
+    }
+  }
+
   /* Get some structural info */
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
   xhci->max_device_slots = XHCI_HCSPARAMS1_SLOTS(hcsparams1);
   xhci->max_ports = XHCI_HCSPARAMS1_PORTS(hcsparams1);
 
+  /* Enable all slots */
+  xhci->num_enabled_slots = xhci->max_device_slots;
+  mmio_set_bits(&xhci->oper_regs->config, xhci->num_enabled_slots);
 
-  mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_USBCMD_RUNSTOP);
+  /* Allocate memory and write the pointer to DCBAAP register */
+  xhci_configure_dcbaap(xhci);
 
   if (debug_enabled())
   {
@@ -1665,6 +1820,9 @@ static struct grub_usb_controller_dev usb_controller_dev = {
 
 GRUB_MOD_INIT (xhci)
 {
+  COMPILE_TIME_ASSERT(GRUB_CHAR_BIT == 8);
+  //COMPILE_TIME_ASSERT(sizeof(struct xhci_slot_context) == );
+
   xhci_trace ("[loading]\n");
   grub_stop_disk_firmware ();
   grub_boot_time ("Initing xHCI hardware");
