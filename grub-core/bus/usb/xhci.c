@@ -248,6 +248,14 @@ pci_config_read32 (grub_pci_device_t dev, unsigned int reg)
   return grub_le_to_cpu32 (grub_pci_read (addr) );
 }
 
+static void
+pci_config_write32 (grub_pci_device_t dev, unsigned int reg, grub_uint32_t val)
+{
+  grub_pci_address_t addr;
+  addr = grub_pci_make_address (dev, reg);
+  return grub_pci_write (addr, grub_cpu_to_le32 (val));
+}
+
 /** bit 1:0 is Rsvd */
 #define DBOFF_MASK (~0x3)
 
@@ -1559,7 +1567,6 @@ xhci_pci_iter (grub_pci_device_t dev,
   int err;
   struct xhci *xhci;
   grub_uint32_t class_code;
-  grub_uint32_t addr;
   grub_uint32_t base;
   volatile grub_uint32_t *mmio_base_addr;
   grub_uint32_t base_h;
@@ -1592,11 +1599,10 @@ xhci_pci_iter (grub_pci_device_t dev,
     }
 
   /* Set bus master - needed for coreboot, VMware, broken BIOSes etc. */
-  addr = grub_pci_make_address (dev, GRUB_PCI_REG_COMMAND);
-  grub_pci_write_word(addr,
-    		  GRUB_PCI_COMMAND_MEM_ENABLED
-    		  | GRUB_PCI_COMMAND_BUS_MASTER
-    		  | grub_pci_read_word(addr));
+  pci_config_write32(dev, GRUB_PCI_REG_COMMAND,
+      pci_config_read32(dev, GRUB_PCI_REG_COMMAND)
+      | GRUB_PCI_COMMAND_MEM_ENABLED
+      | GRUB_PCI_COMMAND_BUS_MASTER);
 
   xhci_trace ("xHCI 32-bit MMIO regs OK\n");
 
