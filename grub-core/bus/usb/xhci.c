@@ -1324,9 +1324,12 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   xhci->db_regs = (struct xhci_doorbell_regs *)
     ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK));
 
+  /* Get some structural info */
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
   xhci->max_device_slots = XHCI_HCSPARAMS1_SLOTS(hcsparams1);
   xhci->max_ports = XHCI_HCSPARAMS1_PORTS(hcsparams1);
+
+
   mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_USBCMD_RUNSTOP);
 
   if (debug_enabled())
@@ -1558,7 +1561,12 @@ static unsigned long pci_bar_start ( struct grub_pci_device *dev, unsigned int r
 }
 
 
-/* PCI iteration function... */
+/* PCI iteration function, to be passed to grub_pci_iterate.
+ *
+ * grub_pci_iterate will invoke this function for each PCI device that exists
+ * in the system. This function checks if the device is an xHC and initializes
+ * it. Return 0 to continue iterating over devices, != 0 to abort.
+ */
 static int
 xhci_pci_iter (grub_pci_device_t dev,
                     grub_pci_id_t pciid __attribute__ ((unused)),
@@ -1588,30 +1596,30 @@ xhci_pci_iter (grub_pci_device_t dev,
   if (((base & GRUB_PCI_ADDR_MEM_TYPE_MASK) != GRUB_PCI_ADDR_MEM_TYPE_32)
       && (base_h != 0))
     {
-      xhci_trace ("registers above 4G are not supported\n");
+      xhci_err ("registers above 4G are not supported\n");
       return 0;
     }
   base &= GRUB_PCI_ADDR_MEM_MASK;
   if (!base)
     {
-      xhci_trace ("xHCI is not mapped (broken PC firmware)\n");
+      xhci_err ("xHCI BARs not programmed (broken PC firmware)\n");
       return 0;
     }
 
-  /* Set bus master - needed for coreboot, VMware, broken BIOSes etc. */
+  /* Set bus master - needed for coreboot, VMware, broken BIOSes etc. or else
+   * MMIO access doesn't work (no effect).
+   */
   pci_config_write32(dev, GRUB_PCI_REG_COMMAND,
       pci_config_read32(dev, GRUB_PCI_REG_COMMAND)
       | GRUB_PCI_COMMAND_MEM_ENABLED
       | GRUB_PCI_COMMAND_BUS_MASTER);
 
-  xhci_trace ("xHCI 32-bit MMIO regs OK\n");
-
   mmio_base_addr = grub_pci_device_map_range (dev,
       (base & XHCI_ADDR_MEM_MASK),
       0x100); /* PCI config space is 256 bytes */
 
-  xhci_trace ("Start of MMIO area (BAR0): 0x%08x\n",
-      (unsigned int)mmio_base_addr);
+  xhci_trace ("xHCI 32-bit MMIO regs (BAR0) at 0x%08x\n",
+      (unsigned long int)mmio_base_addr);
 
   xhci = grub_zalloc (sizeof (*xhci));
   if (!xhci)
