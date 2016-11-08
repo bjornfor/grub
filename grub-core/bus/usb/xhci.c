@@ -1612,7 +1612,7 @@ xhci_pci_iter (grub_pci_device_t dev,
   xhci = grub_zalloc (sizeof (*xhci));
   if (!xhci)
     {
-      xhci_trace ("out of memory\n");
+      xhci_err ("out of memory\n");
       return GRUB_USB_ERR_INTERNAL;
     }
 
