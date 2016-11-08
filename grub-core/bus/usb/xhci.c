@@ -243,7 +243,7 @@ pci_config_read32 (grub_pci_device_t dev, unsigned int reg)
 struct xhci_cap_regs {
   /* These are read only, so we don't need volatile */
   const grub_uint8_t caplength;
-  const grub_uint8_t rsvd1;
+  const grub_uint8_t _rsvd1;
   const grub_uint16_t hciversion;
   const grub_uint32_t hcsparams1;
   const grub_uint32_t hcsparams2;
@@ -264,22 +264,22 @@ struct xhci_oper_regs {
   /* Page Size */
   volatile grub_uint32_t pagesize;
   /** Reserved */
-  grub_uint32_t rsvdz1;
-  grub_uint32_t rsvdz2;
+  grub_uint32_t _rsvdz1;
+  grub_uint32_t _rsvdz2;
   /** Device Notification Control */
   volatile grub_uint32_t dnctrl;
   /** Command Ring Control */
   volatile grub_uint32_t crcr;
   /** Reserved 0x20-0x2F */
-  grub_uint32_t rsvdz3[4];
+  grub_uint32_t _rsvdz3[4];
   /** Device Context Base Address Array Pointer */
   volatile grub_uint32_t dcbaap;
   /** Configure */
   volatile grub_uint32_t config;
   /** Reserved 0x03c-0x3ff */
-  grub_uint32_t rsvdz4[241];
+  grub_uint32_t _rsvdz4[241];
   /** Port Register Set 1-MaxPorts (0x400-0x13ff) */
-  volatile grub_uint32_t reserved[1024];
+  volatile grub_uint32_t _reserved[1024];
 };
 
 /** Runtime registers */
