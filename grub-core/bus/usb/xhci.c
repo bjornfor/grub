@@ -497,8 +497,14 @@ xhci_dump_oper(struct xhci *xhci)
   if (!debug_enabled())
     return 0;
 
-  xhci_trace ("USBCMD=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->usbcmd));
+  val32 = mmio_read32(&xhci->oper_regs->usbcmd);
+  grub_snprintf (extra, sizeof (extra),
+		 "%s%s"
+                 , val32 & XHCI_USBCMD_RUNSTOP ? " RUN" : ""
+                 , val32 & XHCI_USBCMD_HCRST ? " HCRST" : ""
+      );
+  xhci_trace ("USBCMD=0x%08x%s\n",
+      val32, extra);
 
   val32 = mmio_read32(&xhci->oper_regs->usbsts);
   grub_snprintf (extra, sizeof (extra),
