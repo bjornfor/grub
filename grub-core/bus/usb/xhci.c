@@ -319,6 +319,7 @@ struct xhci_doorbell_regs {
 
 struct xhci
 {
+  /* Register addresses. */
   volatile struct xhci_cap_regs *cap_regs;
   volatile struct xhci_oper_regs *oper_regs;
   volatile struct xhci_run_regs *run_regs;
@@ -1312,8 +1313,8 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
     ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK));
 
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
-  xhci->max_device_slots = hcsparams1 & 0xff;
-  xhci->max_ports = (hcsparams1 >> 24) & 0xff;
+  xhci->max_device_slots = XHCI_HCSPARAMS1_SLOTS(hcsparams1);
+  xhci->max_ports = XHCI_HCSPARAMS1_PORTS(hcsparams1);
   mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_USBCMD_RUNSTOP);
 
   if (debug_enabled())
