@@ -1609,7 +1609,7 @@ xhci_pci_iter (grub_pci_device_t dev,
   xhci_trace ("Start of MMIO area (BAR0): 0x%08x\n",
       (unsigned int)mmio_base_addr);
 
-  xhci = grub_malloc (sizeof (*xhci));
+  xhci = grub_zalloc (sizeof (*xhci));
   if (!xhci)
     {
       xhci_trace ("out of memory\n");
