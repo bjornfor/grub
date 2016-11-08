@@ -1574,10 +1574,8 @@ xhci_pci_iter (grub_pci_device_t dev,
       dev.function, pciid);
 
   /* Determine xHCI MMIO registers base address */
-  addr = grub_pci_make_address (dev, GRUB_PCI_REG_ADDRESS_REG0);
-  base = grub_pci_read (addr);
-  addr = grub_pci_make_address (dev, GRUB_PCI_REG_ADDRESS_REG1);
-  base_h = grub_pci_read (addr);
+  base = pci_config_read32 (dev, GRUB_PCI_REG_ADDRESS_REG0);
+  base_h = pci_config_read32 (dev, GRUB_PCI_REG_ADDRESS_REG1);
   /* Stop if registers are mapped above 4G - GRUB does not currently
    * work with registers mapped above 4G */
   if (((base & GRUB_PCI_ADDR_MEM_TYPE_MASK) != GRUB_PCI_ADDR_MEM_TYPE_32)
