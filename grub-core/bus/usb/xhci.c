@@ -421,6 +421,9 @@ xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci_portrs_type typ
 static int
 xhci_dump_cap(struct xhci *xhci)
 {
+  if (!debug_enabled())
+    return 0;
+
   xhci_trace ("CAPLENGTH=%d\n",
       mmio_read8 (&xhci->cap_regs->caplength));
 
@@ -490,6 +493,9 @@ xhci_dump_oper(struct xhci *xhci)
   int i;
   grub_uint32_t val32;
   char extra[256];
+
+  if (!debug_enabled())
+    return 0;
 
   xhci_trace ("USBCMD=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->usbcmd));
