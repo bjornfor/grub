@@ -81,6 +81,21 @@ enum
   /* RsvdZ */
 };
 
+/* Command Ring Control Register (CRCR). Sectin 5.4.5 in [spec]. */
+enum
+{
+  XHCI_CRCR_RCS  = (1 << 0), /* Ring Cycle State */
+  XHCI_CRCR_CS   = (1 << 1), /* Command Stop */
+  XHCI_CRCR_CA   = (1 << 2), /* Command Abort */
+  XHCI_CRCR_CRR  = (1 << 3), /* Command Ring Running */
+  /* RsvdP */
+  XHCI_CRCR_CMD_RING_POINTER_SHIFT = 6, /* Command Ring Pointer offset */
+  XHCI_CRCR_CMD_RING_POINTER_MASK =
+    ((~0) << XHCI_CRCR_CMD_RING_POINTER_SHIFT), /* Command Ring Pointer bits,
+                                                  * low end (no 64-bit support
+                                                  * here)
+                                                  */
+};
 
 /* Offset relative to Operational Base */
 #define XHCI_PORTSC(port) (0x400 + (0x10 * (port - 1)))
