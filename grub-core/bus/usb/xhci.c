@@ -1687,6 +1687,15 @@ xhci_program_dcbaap(struct xhci *xhci)
   return 0;
 }
 
+/** Allocate command ring memory and program xHC */
+static int
+xhci_setup_command_ring(struct xhci *xhci)
+{
+  (void)xhci;
+  xhci_trace("%s: TODO: implement", __func__);
+  return 0;
+}
+
 static int
 xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
 {
@@ -1736,6 +1745,24 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   /* Allocate memory and write the pointer to DCBAAP register */
   xhci_allocate_dcbaa(xhci);
   xhci_program_dcbaap(xhci);
+
+  /* Setup Command Ring */
+  xhci_setup_command_ring(xhci);
+
+  /* Setup interrupts (not supported in this driver) */
+
+  /* Start the controller so that it accepts dorbell notifications.
+   * We can run commands and the root hub ports will begin reporting device
+   * connects etc.
+   *
+   * USB2 devices require the port reset process to advance the port to the
+   * Enabled state. Once USB2 ports are Enabled, the port is active with SOFs
+   * occurring on the port, but the Pipe Schedules have not yet been enabled.
+   *
+   * SS ports automatically advance to the Enabled state if a successful device
+   * attach is detected.
+   */
+  mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 1);
 
   if (debug_enabled())
   {
