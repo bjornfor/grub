@@ -47,6 +47,10 @@
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
+/* Where is the standard "offsetof" macro */
+#define OFFSETOF(T, m) \
+  ((grub_size_t) (((grub_uint8_t *) &(((T*)NULL)->m)) - ((grub_uint8_t *) ((T*) NULL))))
+
 /*
  * Some reasons for doing this kind of register access abstraction. It has a
  * fairly good balance between type safety and convenience. Bit-fields are not
@@ -225,22 +229,6 @@ enum bits32
   /*
    * Doorbell Registers
    */
-};
-
-/* Command Ring Control Register (CRCR). Section 5.4.5 in [spec]. */
-enum
-{
-  XHCI_CRCR_RCS  = (1 << 0), /* Ring Cycle State */
-  XHCI_CRCR_CS   = (1 << 1), /* Command Stop */
-  XHCI_CRCR_CA   = (1 << 2), /* Command Abort */
-  XHCI_CRCR_CRR  = (1 << 3), /* Command Ring Running */
-  /* RsvdP */
-  XHCI_CRCR_CMD_RING_POINTER_SHIFT = 6, /* Command Ring Pointer offset */
-  XHCI_CRCR_CMD_RING_POINTER_MASK =
-    ((~0) << XHCI_CRCR_CMD_RING_POINTER_SHIFT), /* Command Ring Pointer bits,
-                                                  * low end (no 64-bit support
-                                                  * here)
-                                                  */
 };
 
 /** Maximum device slots enabled */
@@ -437,17 +425,16 @@ struct xhci_oper_regs {
   volatile grub_uint32_t usbsts;
   /* Page Size */
   volatile grub_uint32_t pagesize;
-  /** Reserved */
-  grub_uint32_t _rsvdz1;
-  grub_uint32_t _rsvdz2;
+  /** Reserved 0x0c-0x13 */
+  grub_uint32_t _rsvdz1[2];
   /** Device Notification Control */
   volatile grub_uint32_t dnctrl;
   /** Command Ring Control */
-  volatile grub_uint32_t crcr;
+  volatile grub_uint64_t crcr;
   /** Reserved 0x20-0x2F */
-  grub_uint32_t _rsvdz3[4];
+  grub_uint32_t _rsvdz2[4];
   /** Device Context Base Address Array Pointer */
-  volatile grub_uint32_t dcbaap;
+  volatile grub_uint64_t dcbaap;
   /** Configure */
   volatile grub_uint32_t config;
   /** Reserved 0x03c-0x3ff */
@@ -581,6 +568,12 @@ static inline grub_uint32_t
 mmio_read32 (const volatile grub_uint32_t *addr)
 {
   return grub_le_to_cpu32 (*addr);
+}
+
+static inline grub_uint64_t
+mmio_read64 (const volatile grub_uint64_t *addr)
+{
+  return grub_le_to_cpu64 (*addr);
 }
 
 static inline void
@@ -792,11 +785,11 @@ xhci_dump_oper(struct xhci *xhci)
   xhci_trace ("DNCTRL=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->dnctrl));
 
-  xhci_trace ("CRCR=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->crcr));
+  xhci_trace ("CRCR=0x%08" PRIxGRUB_UINT64_T "\n",
+      mmio_read64 (&xhci->oper_regs->crcr));
 
-  xhci_trace ("DCBAAP=0x%08x\n",
-      mmio_read32 (&xhci->oper_regs->dcbaap));
+  xhci_trace ("DCBAAP=0x%08" PRIxGRUB_UINT64_T "\n",
+      mmio_read64 (&xhci->oper_regs->dcbaap));
 
   xhci_trace ("CONFIG=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->config));
@@ -2045,9 +2038,12 @@ static struct grub_usb_controller_dev usb_controller_dev = {
 
 GRUB_MOD_INIT (xhci)
 {
-  /* No limits.h or CHAR_BIT available, use GRUB_CHAR_BIT */
+  /* Sanity check register addresses.
+   * No limits.h or CHAR_BIT available, use GRUB_CHAR_BIT.
+   */
   COMPILE_TIME_ASSERT(GRUB_CHAR_BIT == 8);
-  //COMPILE_TIME_ASSERT(sizeof(struct xhci_slot_context) == );
+  COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_cap_regs, hccparams2) == 0x1c);
+  COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_oper_regs, config) == 0x38);
 
   xhci_trace ("[loading]\n");
   grub_stop_disk_firmware ();
