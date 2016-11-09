@@ -619,7 +619,7 @@ xhci_halt (struct xhci *xhci)
       mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_USBCMD_RUNSTOP);
       /* Ensure command is written */
       mmio_read32(&xhci->oper_regs->usbcmd);
-      maxtime = grub_get_time_ms () + 16000; /* spec says 16ms max */
+      maxtime = grub_get_time_ms () + 16; /* spec says 16ms max */
       while (((mmio_read32(&xhci->oper_regs->usbsts)
                & XHCI_USBSTS_HCH) == 0)
              && (grub_get_time_ms () < maxtime));
@@ -649,7 +649,7 @@ xhci_reset (struct xhci *xhci)
   /* Ensure command is written */
   mmio_read32(&xhci->oper_regs->usbcmd);
   /* XXX: How long time could take reset of HC ? */
-  maxtime = grub_get_time_ms () + 16000;
+  maxtime = grub_get_time_ms () + 1000;
   while (((mmio_read32(&xhci->oper_regs->usbsts)
            & XHCI_USBCMD_HCRST) == 0)
          && (grub_get_time_ms () < maxtime));
