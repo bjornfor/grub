@@ -674,7 +674,7 @@ xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci_portrs_type typ
   if (port > xhci->max_ports)
   {
     xhci_err ("too big port number\n");
-    return ~0;
+    return 0;
   }
 
   addr = (grub_uint8_t*)xhci->oper_regs + 0x400 + (0x10 * (port - 1)) + type;
