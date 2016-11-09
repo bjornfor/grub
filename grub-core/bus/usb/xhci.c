@@ -185,30 +185,30 @@ enum bits32
   /* RsvdP */
 
   /* PORTSC */
-  XHCI_OP_PORTSC_CCS        = BITS(0, 0),
-  XHCI_OP_PORTSC_PED        = BITS(1, 1),
+  XHCI_OP_PORTSC_CCS        = BITS(0, 0), /* Current Connect Status */
+  XHCI_OP_PORTSC_PED        = BITS(1, 1), /* Port Enabled/Disabled */
   /* RsvdZ */
-  XHCI_OP_PORTSC_OCA        = BITS(3, 3),
-  XHCI_OP_PORTSC_PR         = BITS(4, 4),
-  XHCI_OP_PORTSC_PLS        = BITS(5, 8),
-  XHCI_OP_PORTSC_PP         = BITS(9, 9),
-  XHCI_OP_PORTSC_PORT_SPEED = BITS(10, 13),
-  XHCI_OP_PORTSC_PIC        = BITS(14, 15),
-  XHCI_OP_PORTSC_LWS        = BITS(16, 16),
-  XHCI_OP_PORTSC_CSC        = BITS(17, 17),
-  XHCI_OP_PORTSC_PEC        = BITS(18, 18),
-  XHCI_OP_PORTSC_WRC        = BITS(19, 19),
-  XHCI_OP_PORTSC_OCC        = BITS(20, 20),
-  XHCI_OP_PORTSC_PRC        = BITS(21, 21),
-  XHCI_OP_PORTSC_PLC        = BITS(22, 22),
-  XHCI_OP_PORTSC_CEC        = BITS(23, 23),
-  XHCI_OP_PORTSC_CAS        = BITS(24, 24),
-  XHCI_OP_PORTSC_WCE        = BITS(25, 25),
-  XHCI_OP_PORTSC_WDE        = BITS(26, 26),
-  XHCI_OP_PORTSC_WOE        = BITS(27, 27),
+  XHCI_OP_PORTSC_OCA        = BITS(3, 3), /* Over-current Active */
+  XHCI_OP_PORTSC_PR         = BITS(4, 4), /* Port Reset */
+  XHCI_OP_PORTSC_PLS        = BITS(5, 8), /* Port Link State */
+  XHCI_OP_PORTSC_PP         = BITS(9, 9), /* Port Power */
+  XHCI_OP_PORTSC_PS         = BITS(10, 13), /* Port Speed */
+  XHCI_OP_PORTSC_PIC        = BITS(14, 15), /* Port Indicator Control */
+  XHCI_OP_PORTSC_LWS        = BITS(16, 16), /* Port Link State Write Strobe */
+  XHCI_OP_PORTSC_CSC        = BITS(17, 17), /* Connect Status Change */
+  XHCI_OP_PORTSC_PEC        = BITS(18, 18), /* Port Enabled/Disabled Change */
+  XHCI_OP_PORTSC_WRC        = BITS(19, 19), /* Warm Port Reset Change */
+  XHCI_OP_PORTSC_OCC        = BITS(20, 20), /* Over-current Change */
+  XHCI_OP_PORTSC_PRC        = BITS(21, 21), /* Port Reset Change */
+  XHCI_OP_PORTSC_PLC        = BITS(22, 22), /* Port Link State Change */
+  XHCI_OP_PORTSC_CEC        = BITS(23, 23), /* Port Config Error Change */
+  XHCI_OP_PORTSC_CAS        = BITS(24, 24), /* Cold Attach Status */
+  XHCI_OP_PORTSC_WCE        = BITS(25, 25), /* Wake on Connect Enable */
+  XHCI_OP_PORTSC_WDE        = BITS(26, 26), /* Wake on Disconnect Enable */
+  XHCI_OP_PORTSC_WOE        = BITS(27, 27), /* Wake on Over-current Enable */
   /* RsvdZ */
-  XHCI_OP_PORTSC_DR         = BITS(30, 30),
-  XHCI_OP_PORTSC_WPR        = BITS(31, 31),
+  XHCI_OP_PORTSC_DR         = BITS(30, 30), /* Device Removable */
+  XHCI_OP_PORTSC_WPR        = BITS(31, 31), /* Warm Port Reset */
 
   /* PORTPMSC */
   XHCI_OP_PORTPMSC_U1_TIMEOUT = BITS(0, 7),
@@ -719,28 +719,28 @@ xhci_dump_oper_portsc(struct xhci *xhci, int port)
   portsc = xhci_read_portrs (xhci, port, PORTSC);
   grub_printf (" PORTSC(%02d)=0x%08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
       port, portsc
-      , portsc & XHCI_PORTSC_CCS ? " CCS" : ""
-      , portsc & XHCI_PORTSC_PED ? " PED" : ""
-      , portsc & XHCI_PORTSC_OCA ? " OCA" : ""
-      , portsc & XHCI_PORTSC_PR ? " PR" : ""
-      , portsc & XHCI_PORTSC_PLS ? " PLS" : ""
-      , portsc & XHCI_PORTSC_PP ? " PP" : ""
-      , portsc & XHCI_PORTSC_PS ? " PS" : ""
-      , portsc & XHCI_PORTSC_PIC ? " PIC" : ""
-      , portsc & XHCI_PORTSC_LWS ? " LWS" : ""
-      , portsc & XHCI_PORTSC_CSC ? " CSC" : ""
-      , portsc & XHCI_PORTSC_PEC ? " PEC" : ""
-      , portsc & XHCI_PORTSC_WRC ? " WRC" : ""
-      , portsc & XHCI_PORTSC_OCC ? " OCC" : ""
-      , portsc & XHCI_PORTSC_PRC ? " PRC" : ""
-      , portsc & XHCI_PORTSC_PLC ? " PLC" : ""
-      , portsc & XHCI_PORTSC_CEC ? " CEC" : ""
-      , portsc & XHCI_PORTSC_CAS ? " CAS" : ""
-      , portsc & XHCI_PORTSC_WCE ? " WCE" : ""
-      , portsc & XHCI_PORTSC_WDE ? " WDE" : ""
-      , portsc & XHCI_PORTSC_WOE ? " WOE" : ""
-      , portsc & XHCI_PORTSC_DR ? " DR" : ""
-      , portsc & XHCI_PORTSC_WPR ? " WPR" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_CCS) ? " CCS" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_PED) ? " PED" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_OCA) ? " OCA" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_PR) ? " PR" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_PLS) ? " PLS" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_PP) ? " PP" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_PS) ? " PS" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_PIC) ? " PIC" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_LWS) ? " LWS" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_CSC) ? " CSC" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_PEC) ? " PEC" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_WRC) ? " WRC" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_OCC) ? " OCC" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_PRC) ? " PRC" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_PLC) ? " PLC" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_CEC) ? " CEC" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_CAS) ? " CAS" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_WCE) ? " WCE" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_WDE) ? " WDE" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_WOE) ? " WOE" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_DR) ? " DR" : ""
+      , parse_reg(portsc, XHCI_OP_PORTSC_WPR) ? " WPR" : ""
       );
 }
 
