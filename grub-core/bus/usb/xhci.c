@@ -21,7 +21,7 @@
  * Simple xHCI driver for GRUB.
  *
  * Limitations:
- *  - 32-bit addressing (no 64-bit)
+ *  - No 64-bit adddressing (only 32-bit)
  *  - No interrupts (just polling)
  *  - Only bulk transfer
  *
@@ -47,38 +47,184 @@
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
-/* USB Command Register (USBCMD) bits. Section 5.4.1 in [spec]. */
-enum
-{
-  XHCI_USBCMD_RUNSTOP = (1 <<  0), /* Run = 1 / Stop = 0 */
-  XHCI_USBCMD_HCRST   = (1 <<  1), /* Host Controller Reset */
-  XHCI_USBCMD_INTE    = (1 <<  2), /* Interrupter Enable */
-  XHCI_USBCMD_HSEE    = (1 <<  3), /* Host System Error Enable */
-  /* RsvdP */
-  XHCI_USBCMD_LHCRST  = (1 <<  7), /* Light Host Controller Reset */
-  XHCI_USBCMD_CSS     = (1 <<  8), /* Controller Save State */
-  XHCI_USBCMD_CRS     = (1 <<  9), /* Controller Restore State */
-  XHCI_USBCMD_EU3S    = (1 << 11), /* Enable U3 MFINDEX Stop */
-  XHCI_USBCMD_SPE     = (1 << 12), /* Short Packet Enable */
-  XHCI_USBCMD_CME     = (1 << 13), /* CEM Enable */
-  /* RsvdP */
-};
+/*
+ * Some reasons for doing this kind of register access abstraction. It has a
+ * fairly good balance between type safety and convenience. Bit-fields are not
+ * portable. Plain bitshifts with macros can be error prone - must never forget
+ * to use (a bit ad-hoc). It may be a bit slower than using macros, but it's
+ * more maintainable/readable.
+ */
 
-/* USB Status Register (USBSTS) bits. Section 5.4.2 in [spec]. */
-enum
+/** For initializing enum bits values with start and end bit positions. */
+#define BITS(start, end) ((start << 16) | (end - start + 1))
+
+enum bits32
 {
-  XHCI_USBSTS_HCH  = (1 <<  0), /* HCHalted */
+  ALL_BITS = BITS(0, 31),
+
+  /*
+   * Capability Registers
+   */
+  XHCI_CAP_CAPLENGTH                         = BITS(0, 7),
+  XHCI_CAP_HCIVERSION                        = BITS(16, 31),
+  XHCI_CAP_HCSPARAMS1_MAX_DEVICE_SLOTS       = BITS(0, 7),
+  XHCI_CAP_HCSPARAMS1_MAX_INTERRUPTERS       = BITS(8, 18),
+  /* Rsvd */
+  XHCI_CAP_HCSPARAMS1_MAX_PORTS              = BITS(24, 31),
+  XHCI_CAP_HCSPARAMS2_IST                    = BITS(0, 3),
+  XHCI_CAP_HCSPARAMS2_ERST_MAX               = BITS(4, 7),
+  /* Rsvd */
+  XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_HI    = BITS(21, 25),
+  XHCI_CAP_HCSPARAMS2_SPR                    = BITS(26, 26),
+  XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_LO    = BITS(27, 31),
+  XHCI_CAP_HCSPARAMS3_U1_DEVICE_EXIT_LATENCY = BITS(0, 7),
+  /* Rsvd */
+  XHCI_CAP_HCSPARAMS3_U2_DEVICE_EXIT_LATENCY = BITS(16, 31),
+  XHCI_CAP_HCCPARAMS1_AC64                   = BITS(0, 0),
+  XHCI_CAP_HCCPARAMS1_BNC                    = BITS(1, 1),
+  XHCI_CAP_HCCPARAMS1_CSZ                    = BITS(2, 2),
+  XHCI_CAP_HCCPARAMS1_PPC                    = BITS(3, 3),
+  XHCI_CAP_HCCPARAMS1_PIND                   = BITS(4, 4),
+  XHCI_CAP_HCCPARAMS1_LHRC                   = BITS(5, 5),
+  XHCI_CAP_HCCPARAMS1_LTC                    = BITS(6, 6),
+  XHCI_CAP_HCCPARAMS1_NSS                    = BITS(7, 7),
+  XHCI_CAP_HCCPARAMS1_PAE                    = BITS(8, 8),
+  XHCI_CAP_HCCPARAMS1_SPC                    = BITS(9, 9),
+  XHCI_CAP_HCCPARAMS1_SEC                    = BITS(10, 10),
+  XHCI_CAP_HCCPARAMS1_CFC                    = BITS(11, 11),
+  XHCI_CAP_HCCPARAMS1_MAX_PSA_SIZE           = BITS(12, 15),
+  /* xHCI Extended Capabilities Pointer, offset in 32-bit words (4 bytes) */
+  XHCI_CAP_HCCPARAMS1_XECP                   = BITS(16, 31),
+  /* Offset in 32-bit words (4 bytes) */
+  XHCI_CAP_DBOFF                             = BITS(2, 31),
+  /* Offset in 32-byte words (yes BYTES) */
+  XHCI_CAP_RTSOFF                            = BITS(5, 31),
+  XHCI_CAP_HCCPARAMS2_U3C                    = BITS(0, 0),
+  XHCI_CAP_HCCPARAMS2_CMC                    = BITS(1, 1),
+  XHCI_CAP_HCCPARAMS2_FSC                    = BITS(2, 2),
+  XHCI_CAP_HCCPARAMS2_CTC                    = BITS(3, 3),
+  XHCI_CAP_HCCPARAMS2_LEC                    = BITS(4, 4),
+  XHCI_CAP_HCCPARAMS2_CIC                    = BITS(5, 5),
+  /* Rsvd 0x20 - CAPLENGTH */
+
+  /*
+   * Operational Registers
+   */
+  /* USBCMD */
+  XHCI_OP_USBCMD_RUNSTOP = BITS( 0,  0), /* Run = 1, Stop = 0 */
+  XHCI_OP_USBCMD_HCRST   = BITS( 1,  1), /* Host Controller Reset */
+  XHCI_OP_USBCMD_INTE    = BITS( 2,  2), /* Interrupter Enable */
+  XHCI_OP_USBCMD_HSEE    = BITS( 3,  3), /* Host System Error Enable */
+  /* RsvdP */
+  XHCI_OP_USBCMD_LHCRST  = BITS( 7,  7), /* Light Host Controller Reset */
+  XHCI_OP_USBCMD_CSS     = BITS( 8,  8), /* Controller Save State */
+  XHCI_OP_USBCMD_CRS     = BITS( 9,  9), /* Controller Restore State */
+  XHCI_OP_USBCMD_EWE     = BITS(10, 10), /* Enable Wrap Event */
+  XHCI_OP_USBCMD_EU3S    = BITS(11, 11), /* Enable U3 MFINDEX Stop */
+  XHCI_OP_USBCMD_SPE     = BITS(12, 12), /* Short Packet Enable */
+  XHCI_OP_USBCMD_CME     = BITS(13, 13), /* CEM Enable */
+  /* RsvdP */
+
+  /* USBSTS */
+  XHCI_OP_USBSTS_HCH  = BITS(0, 0), /* HCHalted */
   /* RsvdZ */
-  XHCI_USBSTS_HSE  = (1 <<  2), /* Host System Error */
-  XHCI_USBSTS_EINT = (1 <<  3), /* Event Interrupt */
-  XHCI_USBSTS_PCD  = (1 <<  4), /* Port Change Detect */
+  XHCI_OP_USBSTS_HSE  = BITS(2, 2), /* Host System Error */
+  XHCI_OP_USBSTS_EINT = BITS(3, 3), /* Event Interrupt */
+  XHCI_OP_USBSTS_PCD  = BITS(4, 4), /* Port Change Detect */
   /* RsvdZ */
-  XHCI_USBSTS_SSS  = (1 <<  8), /* Save State Status */
-  XHCI_USBSTS_RSS  = (1 <<  9), /* Restore State Status */
-  XHCI_USBSTS_SRE  = (1 << 10), /* Save/Restore Error */
-  XHCI_USBSTS_CNR  = (1 << 11), /* Controller Not Ready */
-  XHCI_USBSTS_HCE  = (1 << 12), /* Host Controller Error */
+  XHCI_OP_USBSTS_SSS  = BITS(8, 8), /* Save State Status */
+  XHCI_OP_USBSTS_RSS  = BITS(9, 9), /* Restore State Status */
+  XHCI_OP_USBSTS_SRE  = BITS(10, 10), /* Save/Restore Error */
+  XHCI_OP_USBSTS_CNR  = BITS(11, 11), /* Controller Not Ready */
+  XHCI_OP_USBSTS_HCE  = BITS(12, 12), /* Host Controller Error */
+  /* RsvdP */
+
+  /* PAGESIZE */
+  XHCI_OP_PAGESIZE    = BITS(0, 15),
+
+  /* DNCTRL */
+  XHCI_OP_DNCTRL_N0    = BITS(0, 0),
+  XHCI_OP_DNCTRL_N1    = BITS(1, 1),
+  XHCI_OP_DNCTRL_N2    = BITS(2, 2),
+  XHCI_OP_DNCTRL_N3    = BITS(3, 3),
+  XHCI_OP_DNCTRL_N4    = BITS(4, 4),
+  XHCI_OP_DNCTRL_N5    = BITS(5, 5),
+  XHCI_OP_DNCTRL_N6    = BITS(6, 6),
+  XHCI_OP_DNCTRL_N7    = BITS(7, 7),
+  XHCI_OP_DNCTRL_N8    = BITS(8, 8),
+  XHCI_OP_DNCTRL_N9    = BITS(9, 9),
+  XHCI_OP_DNCTRL_N10   = BITS(10, 10),
+  XHCI_OP_DNCTRL_N11   = BITS(11, 11),
+  XHCI_OP_DNCTRL_N12   = BITS(12, 12),
+  XHCI_OP_DNCTRL_N13   = BITS(13, 13),
+  XHCI_OP_DNCTRL_N14   = BITS(14, 14),
+  XHCI_OP_DNCTRL_N15   = BITS(15, 15),
+  /* RsvdP */
+
+  /* CRCR */
+  XHCI_OP_CRCR_RCS     = BITS(0, 0),
+  XHCI_OP_CRCR_CS      = BITS(1, 1),
+  XHCI_OP_CRCR_CA      = BITS(2, 2),
+  XHCI_OP_CRCR_CRR     = BITS(3, 3),
+  /* RsvdP */
+  XHCI_OP_CRCR_CMD_RING_PTR_LO = BITS(6, 31),
+  XHCI_OP_CRCR_CMD_RING_PTR_HI = BITS(0, 31),
+
+  /* DCBAAP */
+  XHCI_OP_DCBAAP_LO            = BITS(6, 31),
+  XHCI_OP_DCBAAP_HI            = BITS(0, 31),
+
+  /* CONFIG */
+  XHCI_OP_CONFIG_MAX_SLOTS_EN  = BITS(0, 7),
+  XHCI_OP_CONFIG_U3E           = BITS(8, 8),
+  XHCI_OP_CONFIG_CIE           = BITS(9, 9),
+  /* RsvdP */
+
+  /* PORTSC */
+  XHCI_OP_PORTSC_CCS        = BITS(0, 0),
+  XHCI_OP_PORTSC_PED        = BITS(1, 1),
   /* RsvdZ */
+  XHCI_OP_PORTSC_OCA        = BITS(3, 3),
+  XHCI_OP_PORTSC_PR         = BITS(4, 4),
+  XHCI_OP_PORTSC_PLS        = BITS(5, 8),
+  XHCI_OP_PORTSC_PP         = BITS(9, 9),
+  XHCI_OP_PORTSC_PORT_SPEED = BITS(10, 13),
+  XHCI_OP_PORTSC_PIC        = BITS(14, 15),
+  XHCI_OP_PORTSC_LWS        = BITS(16, 16),
+  XHCI_OP_PORTSC_CSC        = BITS(17, 17),
+  XHCI_OP_PORTSC_PEC        = BITS(18, 18),
+  XHCI_OP_PORTSC_WRC        = BITS(19, 19),
+  XHCI_OP_PORTSC_OCC        = BITS(20, 20),
+  XHCI_OP_PORTSC_PRC        = BITS(21, 21),
+  XHCI_OP_PORTSC_PLC        = BITS(22, 22),
+  XHCI_OP_PORTSC_CEC        = BITS(23, 23),
+  XHCI_OP_PORTSC_CAS        = BITS(24, 24),
+  XHCI_OP_PORTSC_WCE        = BITS(25, 25),
+  XHCI_OP_PORTSC_WDE        = BITS(26, 26),
+  XHCI_OP_PORTSC_WOE        = BITS(27, 27),
+  /* RsvdZ */
+  XHCI_OP_PORTSC_DR         = BITS(30, 30),
+  XHCI_OP_PORTSC_WPR        = BITS(31, 31),
+
+  /* PORTPMSC */
+  XHCI_OP_PORTPMSC_U1_TIMEOUT = BITS(0, 7),
+  XHCI_OP_PORTPMSC_U2_TIMEOUT = BITS(8, 15),
+  XHCI_OP_PORTPMSC_FLA        = BITS(16, 16),
+  /* RsvdP */
+
+  /* PORTLI */
+
+  /* PORTHLPMC */
+
+
+  /*
+   * Runtime Registers
+   */
+
+
+  /*
+   * Doorbell Registers
+   */
 };
 
 /* Command Ring Control Register (CRCR). Section 5.4.5 in [spec]. */
@@ -272,9 +418,10 @@ pci_config_write32 (grub_pci_device_t dev, unsigned int reg, grub_uint32_t val)
 /** Capability registers */
 struct xhci_cap_regs {
   /* These are read only, so we don't need volatile */
-  const grub_uint8_t caplength;
-  const grub_uint8_t _rsvd1;
-  const grub_uint16_t hciversion;
+  //const grub_uint8_t caplength;
+  //const grub_uint8_t _rsvd1;
+  //const grub_uint16_t hciversion;
+  const grub_uint32_t caplength_and_hciversion;
   const grub_uint32_t hcsparams1;
   const grub_uint32_t hcsparams2;
   const grub_uint32_t hcsparams3;
@@ -469,6 +616,47 @@ mmio_clear_bits(volatile grub_uint32_t *addr, grub_uint32_t bits)
   mmio_write32(addr, mmio_read32(addr) & ~bits);
 }
 
+static inline grub_uint32_t
+parse_reg(grub_uint32_t regval, const enum bits32 bits)
+{
+  const grub_uint32_t bitno = bits >> 16;
+  const grub_uint32_t width = bits & 0xff;
+
+  regval >>= bitno;
+  regval &= ((1 << width) - 1);
+  return regval;
+}
+
+/**
+ * Read a MMIO register. Masking and shifting is done automatically with
+ * 'bits'.
+ */
+static inline grub_uint32_t
+mmio_read_bits(const volatile grub_uint32_t *addr, const enum bits32 bits)
+{
+  grub_uint32_t regval;
+
+  regval = grub_le_to_cpu32 (*addr);
+  return parse_reg(regval, bits);
+}
+
+/**
+ * Write a MMIO register. Masking and shifting is done automatically with
+ * 'bits'. The register is read first, so existing bits are preserved.
+ */
+static inline void
+mmio_write_bits(volatile grub_uint32_t *addr, const enum bits32 bits, grub_uint32_t val)
+{
+  grub_uint32_t regval;
+  const grub_uint32_t bitno = bits >> 16;
+  const grub_uint32_t width = bits & 0xff;
+
+  regval = mmio_read32(addr);
+  regval &= ~(((1 << width) - 1) << bitno);
+  regval |= val << bitno;
+  mmio_write32(addr, regval);
+}
+
 enum xhci_portrs_type
 {
   PORTSC = 0,
@@ -500,10 +688,12 @@ xhci_dump_cap(struct xhci *xhci)
     return 0;
 
   xhci_trace ("CAPLENGTH=%d\n",
-      mmio_read8 (&xhci->cap_regs->caplength));
+      mmio_read_bits (&xhci->cap_regs->caplength_and_hciversion,
+        XHCI_CAP_CAPLENGTH));
 
   xhci_trace ("HCIVERSION=0x%04x\n",
-      mmio_read16 (&xhci->cap_regs->hciversion));
+      mmio_read_bits (&xhci->cap_regs->caplength_and_hciversion,
+        XHCI_CAP_HCIVERSION));
 
   xhci_trace ("HCSPARAMS1=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hcsparams1));
@@ -575,8 +765,8 @@ xhci_dump_oper(struct xhci *xhci)
   val32 = mmio_read32(&xhci->oper_regs->usbcmd);
   grub_snprintf (extra, sizeof (extra),
 		 "%s%s"
-                 , val32 & XHCI_USBCMD_RUNSTOP ? " RUN" : ""
-                 , val32 & XHCI_USBCMD_HCRST ? " HCRST" : ""
+                 , parse_reg(val32, XHCI_OP_USBCMD_RUNSTOP) ? " RUN" : ""
+                 , parse_reg(val32, XHCI_OP_USBCMD_HCRST) ? " HCRST" : ""
       );
   xhci_trace ("USBCMD=0x%08x%s\n",
       val32, extra);
@@ -584,15 +774,15 @@ xhci_dump_oper(struct xhci *xhci)
   val32 = mmio_read32(&xhci->oper_regs->usbsts);
   grub_snprintf (extra, sizeof (extra),
 		 "%s%s%s%s%s%s%s%s%s"
-                 , val32 & XHCI_USBSTS_HCH ? " HCH" : ""
-                 , val32 & XHCI_USBSTS_HSE ? " HCE" : ""
-                 , val32 & XHCI_USBSTS_EINT ? " EINT" : ""
-                 , val32 & XHCI_USBSTS_PCD ? " PCD" : ""
-                 , val32 & XHCI_USBSTS_SSS ? " SSS" : ""
-                 , val32 & XHCI_USBSTS_RSS ? " RSS" : ""
-                 , val32 & XHCI_USBSTS_SRE ? " SRE" : ""
-                 , val32 & XHCI_USBSTS_CNR ? " CNR" : ""
-                 , val32 & XHCI_USBSTS_HCE ? " HCE" : ""
+                 , parse_reg(val32, XHCI_OP_USBSTS_HCH) ? " HCH" : ""
+                 , parse_reg(val32, XHCI_OP_USBSTS_HSE) ? " HCE" : ""
+                 , parse_reg(val32, XHCI_OP_USBSTS_EINT) ? " EINT" : ""
+                 , parse_reg(val32, XHCI_OP_USBSTS_PCD) ? " PCD" : ""
+                 , parse_reg(val32, XHCI_OP_USBSTS_SSS) ? " SSS" : ""
+                 , parse_reg(val32, XHCI_OP_USBSTS_RSS) ? " RSS" : ""
+                 , parse_reg(val32, XHCI_OP_USBSTS_SRE) ? " SRE" : ""
+                 , parse_reg(val32, XHCI_OP_USBSTS_CNR) ? " CNR" : ""
+                 , parse_reg(val32, XHCI_OP_USBSTS_HCE) ? " HCE" : ""
       );
   xhci_trace ("USBSTS=0x%08x%s\n", val32, extra);
 
@@ -633,19 +823,19 @@ xhci_halt (struct xhci *xhci)
   grub_uint64_t maxtime;
   unsigned int is_halted;
 
-  is_halted = mmio_read32(&xhci->oper_regs->usbsts) & XHCI_USBSTS_HCH;
+  is_halted = mmio_read_bits(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_HCH);
   if (is_halted == 0)
     {
       xhci_trace ("grub_xhci_halt not halted - halting now\n");
-      mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_USBCMD_RUNSTOP);
+      mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 1);
       /* Ensure command is written */
       mmio_read32(&xhci->oper_regs->usbcmd);
       maxtime = grub_get_time_ms () + 16; /* spec says 16ms max */
-      while (((mmio_read32(&xhci->oper_regs->usbsts)
-               & XHCI_USBSTS_HCH) == 0)
-             && (grub_get_time_ms () < maxtime));
-      if ((mmio_read32 (&xhci->oper_regs->usbsts)
-           & XHCI_USBSTS_HCH) == 0)
+      while (((mmio_read_bits(&xhci->oper_regs->usbsts,
+               XHCI_OP_USBSTS_HCH) == 0)
+             && (grub_get_time_ms () < maxtime)));
+      if ((mmio_read_bits(&xhci->oper_regs->usbsts,
+           XHCI_OP_USBSTS_HCH)) == 0)
         return GRUB_USB_ERR_TIMEOUT;
     }
   else
@@ -666,16 +856,16 @@ xhci_reset (struct xhci *xhci)
 
   //sync_all_caches (xhci);
 
-  mmio_set_bits(&xhci->oper_regs->usbcmd, XHCI_USBCMD_HCRST);
+  mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_HCRST, 1);
   /* Ensure command is written */
   mmio_read32(&xhci->oper_regs->usbcmd);
   /* XXX: How long time could take reset of HC ? */
   maxtime = grub_get_time_ms () + 1000;
-  while (((mmio_read32(&xhci->oper_regs->usbsts)
-           & XHCI_USBCMD_HCRST) == 0)
+  while (((mmio_read_bits(&xhci->oper_regs->usbsts,
+           XHCI_OP_USBCMD_HCRST)) == 0)
          && (grub_get_time_ms () < maxtime));
-  if ((mmio_read32 (&xhci->oper_regs->usbsts)
-       & XHCI_USBCMD_HCRST) == 0)
+  if ((mmio_read_bits (&xhci->oper_regs->usbsts,
+       XHCI_OP_USBCMD_HCRST)) == 0)
     return GRUB_USB_ERR_TIMEOUT;
 
   return GRUB_USB_ERR_NONE;
@@ -1485,7 +1675,9 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   /* Locate capability, operational, runtime, and doorbell registers */
   xhci->cap_regs = mmio_base_addr;
   xhci->oper_regs = (struct xhci_oper_regs *)
-    ((grub_uint8_t *)xhci->cap_regs + mmio_read8 (&xhci->cap_regs->caplength));
+    ((grub_uint8_t *)xhci->cap_regs +
+     mmio_read_bits (&xhci->cap_regs->caplength_and_hciversion,
+       XHCI_CAP_CAPLENGTH));
   xhci->run_regs = (struct xhci_run_regs *)
     ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK));
   xhci->db_regs = (struct xhci_doorbell_regs *)
@@ -1495,7 +1687,7 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   maxtime = grub_get_time_ms () + 1000;
   while (1)
   {
-    if ((mmio_read32(&xhci->oper_regs->usbsts) & XHCI_USBSTS_CNR) == 0)
+    if ((mmio_read_bits(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_CNR)) == 0)
       break;
 
     if (grub_get_time_ms () > maxtime)
@@ -1507,12 +1699,13 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
 
   /* Get some structural info */
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
-  xhci->max_device_slots = XHCI_HCSPARAMS1_SLOTS(hcsparams1);
-  xhci->max_ports = XHCI_HCSPARAMS1_PORTS(hcsparams1);
+  xhci->max_device_slots = parse_reg(hcsparams1, XHCI_CAP_HCSPARAMS1_MAX_DEVICE_SLOTS);
+  xhci->max_ports = parse_reg(hcsparams1, XHCI_CAP_HCSPARAMS1_MAX_PORTS);
 
   /* Enable all slots */
   xhci->num_enabled_slots = xhci->max_device_slots;
-  mmio_set_bits(&xhci->oper_regs->config, xhci->num_enabled_slots);
+  mmio_write_bits(&xhci->oper_regs->config, XHCI_OP_CONFIG_MAX_SLOTS_EN,
+      xhci->num_enabled_slots);
 
   /* Allocate memory and write the pointer to DCBAAP register */
   xhci_allocate_dcbaa(xhci);
