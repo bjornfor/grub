@@ -1819,6 +1819,7 @@ static struct grub_usb_controller_dev usb_controller_dev = {
 
 GRUB_MOD_INIT (xhci)
 {
+  /* No limits.h or CHAR_BIT available, use GRUB_CHAR_BIT */
   COMPILE_TIME_ASSERT(GRUB_CHAR_BIT == 8);
   //COMPILE_TIME_ASSERT(sizeof(struct xhci_slot_context) == );
 
