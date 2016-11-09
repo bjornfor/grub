@@ -1460,12 +1460,11 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   xhci->db_regs = (struct xhci_doorbell_regs *)
     ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK));
 
-  /* Paranoia: wait until controller is ready */
-  maxtime = grub_get_time_ms () + 50000;
+  /* Paranoia/sanity check: wait until controller is ready */
+  maxtime = grub_get_time_ms () + 1000;
   while (1)
   {
-    if (((mmio_read32(&xhci->oper_regs->usbsts) & XHCI_USBSTS_CNR) != 0) &&
-        (grub_get_time_ms () < maxtime))
+    if ((mmio_read32(&xhci->oper_regs->usbsts) & XHCI_USBSTS_CNR) == 0)
       break;
 
     if (grub_get_time_ms () > maxtime)
