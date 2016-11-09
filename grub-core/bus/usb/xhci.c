@@ -430,12 +430,23 @@ struct xhci_oper_regs {
   /** Device Notification Control */
   volatile grub_uint32_t dnctrl;
   /** Command Ring Control */
-  volatile grub_uint64_t crcr;
+  union {
+    struct {
+      volatile grub_uint32_t crcr_lo;
+      volatile grub_uint32_t crcr_hi;
+    };
+    volatile grub_uint64_t crcr;
+  };
   /** Reserved 0x20-0x2F */
   grub_uint32_t _rsvdz2[4];
   /** Device Context Base Address Array Pointer */
-  volatile grub_uint32_t dcbaap;
-  volatile grub_uint32_t dcbaap_hi; /* unused, as we only support 32-bit */
+  union {
+    struct {
+      volatile grub_uint32_t dcbaap_lo;
+      volatile grub_uint32_t dcbaap_hi;
+    };
+    volatile grub_uint64_t dcbaap;
+  };
   /** Configure */
   volatile grub_uint32_t config;
   /** Reserved 0x03c-0x3ff */
@@ -789,8 +800,8 @@ xhci_dump_oper(struct xhci *xhci)
   xhci_trace ("CRCR=0x%08" PRIxGRUB_UINT64_T "\n",
       mmio_read64 (&xhci->oper_regs->crcr));
 
-  xhci_trace ("DCBAAP=0x%08" PRIxGRUB_UINT32_T "\n",
-      mmio_read32 (&xhci->oper_regs->dcbaap));
+  xhci_trace ("DCBAAP=0x%08" PRIxGRUB_UINT64_T "\n",
+      mmio_read64 (&xhci->oper_regs->dcbaap));
 
   xhci_trace ("CONFIG=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->config));
@@ -1666,7 +1677,13 @@ xhci_program_dcbaap(struct xhci *xhci)
   dcbaa_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)xhci->dcbaa);
   xhci_trace ("DCBAA at 0x%08x (virt 0x%08x), len=%d\n",
       dcbaa_phys, xhci->dcbaa, xhci->dcbaa_len);
-  mmio_write_bits(&xhci->oper_regs->dcbaap, XHCI_OP_DCBAAP_LO, dcbaa_phys);
+  /* DCBAAP lo+hi stores the _high order_ bits of the 64-bit address. The
+   * reserved bits in "lo" are zero, so we can simply ignore them as our DCBAA
+   * is 64-byte aligned (1<<6, where 6 is the number of reserved bits). IOW, don't
+   * shift and write the higher bits to the "hi" register, just write the
+   * 32-bit address to "lo".
+   */
+  mmio_write32(&xhci->oper_regs->dcbaap_lo, dcbaa_phys);
   return 0;
 }
 
