@@ -831,7 +831,7 @@ xhci_halt (struct xhci *xhci)
   if (is_halted == 0)
     {
       xhci_trace ("grub_xhci_halt not halted - halting now\n");
-      mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 1);
+      mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 0);
       /* Ensure command is written */
       mmio_read32(&xhci->oper_regs->usbcmd);
       maxtime = grub_get_time_ms () + 16; /* spec says 16ms max */
