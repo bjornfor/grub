@@ -1679,9 +1679,11 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
      mmio_read_bits (&xhci->cap_regs->caplength_and_hciversion,
        XHCI_CAP_CAPLENGTH));
   xhci->run_regs = (struct xhci_run_regs *)
-    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK));
+    ((grub_uint8_t *)xhci->cap_regs +
+     (mmio_read_bits (&xhci->cap_regs->rtsoff, XHCI_CAP_RTSOFF))*32);
   xhci->db_regs = (struct xhci_doorbell_regs *)
-    ((grub_uint8_t *)xhci->cap_regs + (mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK));
+    ((grub_uint8_t *)xhci->cap_regs +
+     (mmio_read_bits (&xhci->cap_regs->dboff, XHCI_CAP_DBOFF))*4);
 
   /* Paranoia/sanity check: wait until controller is ready */
   maxtime = grub_get_time_ms () + 1000;
