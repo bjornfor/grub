@@ -434,7 +434,8 @@ struct xhci_oper_regs {
   /** Reserved 0x20-0x2F */
   grub_uint32_t _rsvdz2[4];
   /** Device Context Base Address Array Pointer */
-  volatile grub_uint64_t dcbaap;
+  volatile grub_uint32_t dcbaap;
+  volatile grub_uint32_t dcbaap_hi; /* unused, as we only support 32-bit */
   /** Configure */
   volatile grub_uint32_t config;
   /** Reserved 0x03c-0x3ff */
@@ -517,8 +518,8 @@ struct xhci
   /* Other data */
   grub_uint8_t num_enabled_slots;
   //struct grub_pci_dma_chunk *dcbaa; /* opaque pointer */
-  grub_uint64_t *dcbaa; /* virtual address */
-  //struct xhci_dcbaa *dcbaa;
+  grub_uint32_t *dcbaa; /* virtual address */
+  grub_uint32_t dcbaa_len; /* size in bytes */
 
   /* linked list */
   struct xhci *next;
@@ -788,8 +789,8 @@ xhci_dump_oper(struct xhci *xhci)
   xhci_trace ("CRCR=0x%08" PRIxGRUB_UINT64_T "\n",
       mmio_read64 (&xhci->oper_regs->crcr));
 
-  xhci_trace ("DCBAAP=0x%08" PRIxGRUB_UINT64_T "\n",
-      mmio_read64 (&xhci->oper_regs->dcbaap));
+  xhci_trace ("DCBAAP=0x%08" PRIxGRUB_UINT32_T "\n",
+      mmio_read32 (&xhci->oper_regs->dcbaap));
 
   xhci_trace ("CONFIG=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->config));
@@ -1626,7 +1627,7 @@ static inline int xhci_nop ( struct xhci_device *xhci ) {
 }
 #endif
 
-/** Allocate memory for xHC Device Context Base Address Array (DCBAA Pointer)
+/** Allocate memory for xHC Device Context Base Address Array.
  *
  * Store a copy of the pointer in the struct xhci instance. The allocated
  * memory must be physically contiguous, 64-byte aligned and the physical
@@ -1635,23 +1636,36 @@ static inline int xhci_nop ( struct xhci_device *xhci ) {
 static int
 xhci_allocate_dcbaa(struct xhci *xhci)
 {
-  grub_size_t len;
-  //struct grub_pci_dma_chunk *dcbaap;
   const int min_align = 64;
 
-  len = xhci->num_enabled_slots * sizeof (xhci->dcbaa[0]);
-  xhci->dcbaa = (grub_uint64_t*)grub_memalign_dma32 (min_align, len);
+  if (xhci->dcbaa)
+  {
+    xhci_err ("dcbaa non-zero, possibly memory leak\n");
+    return -1;
+  }
+
+  xhci->dcbaa = (grub_uint32_t*)grub_memalign_dma32 (min_align, xhci->dcbaa_len);
+  if (!xhci->dcbaa)
+  {
+    xhci_err ("out of memory, couldn't allocate DCBAA memory\n");
+    return -1;
+  }
+
+  grub_memset(xhci->dcbaa, 0, xhci->dcbaa_len);
   return 0;
 }
 
+/** Program xHC DCBAAP register with physical DCBAA from 'xhci' instance */
 static int
 xhci_program_dcbaap(struct xhci *xhci)
 {
-  (void)xhci;
+  grub_uint32_t dcbaa_phys;
+
   /* only 32-bit support */
-  //struct grub_pci_dma_chunk *dcbaap;
-  //xhci->dcbaa = grub_memalign_dma32 (min_align, len);
-  //mmio_write32(&xhci->oper_regs->dcbaap, xhci->dcbaa)
+  dcbaa_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)xhci->dcbaa);
+  xhci_dbg ("DCBAA at 0x%08x (virt 0x%08x), len=%d\n",
+      dcbaa_phys, xhci->dcbaa, xhci->dcbaa_len);
+  mmio_write_bits(&xhci->oper_regs->dcbaap, XHCI_OP_DCBAAP_LO, dcbaa_phys);
   return 0;
 }
 
@@ -1709,6 +1723,7 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   {
     xhci_dump_cap(xhci);
     xhci_dump_oper(xhci);
+    grub_millisleep (10000);
   }
 
 #if 0
