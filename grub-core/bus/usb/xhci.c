@@ -1644,6 +1644,7 @@ xhci_allocate_dcbaa(struct xhci *xhci)
     return -1;
   }
 
+  xhci->dcbaa_len = xhci->num_enabled_slots * sizeof (xhci->dcbaa[0]);
   xhci->dcbaa = (grub_uint32_t*)grub_memalign_dma32 (min_align, xhci->dcbaa_len);
   if (!xhci->dcbaa)
   {
@@ -1663,7 +1664,7 @@ xhci_program_dcbaap(struct xhci *xhci)
 
   /* only 32-bit support */
   dcbaa_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)xhci->dcbaa);
-  xhci_dbg ("DCBAA at 0x%08x (virt 0x%08x), len=%d\n",
+  xhci_trace ("DCBAA at 0x%08x (virt 0x%08x), len=%d\n",
       dcbaa_phys, xhci->dcbaa, xhci->dcbaa_len);
   mmio_write_bits(&xhci->oper_regs->dcbaap, XHCI_OP_DCBAAP_LO, dcbaa_phys);
   return 0;
