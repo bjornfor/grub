@@ -409,11 +409,8 @@ pci_config_write32 (grub_pci_device_t dev, unsigned int reg, grub_uint32_t val)
   return grub_pci_write (addr, grub_cpu_to_le32 (val));
 }
 
-/** bit 1:0 is Rsvd */
-#define DBOFF_MASK (~0x3)
-
-/** bit 4:0 is Rsvd */
-#define RTSOFF_MASK (~0x1f)
+#define DBOFF_TO_BYTES(value) ((value) * 4)
+#define RTSOFF_TO_BYTES(value) ((value) * 32)
 
 /** Capability registers */
 struct xhci_cap_regs {
@@ -708,10 +705,12 @@ xhci_dump_cap(struct xhci *xhci)
       mmio_read32 (&xhci->cap_regs->hccparams1));
 
   xhci_trace ("DBOFF=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->dboff) & DBOFF_MASK);
+      RTSOFF_TO_BYTES(mmio_read_bits (&xhci->cap_regs->dboff,
+          XHCI_CAP_DBOFF)));
 
   xhci_trace ("RTSOFF=0x%08x\n",
-      mmio_read32 (&xhci->cap_regs->rtsoff) & RTSOFF_MASK);
+      RTSOFF_TO_BYTES(mmio_read_bits (&xhci->cap_regs->rtsoff,
+          XHCI_CAP_RTSOFF)));
 
   xhci_trace ("HCCPARAMS2=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hccparams2));
@@ -1680,10 +1679,10 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
        XHCI_CAP_CAPLENGTH));
   xhci->run_regs = (struct xhci_run_regs *)
     ((grub_uint8_t *)xhci->cap_regs +
-     (mmio_read_bits (&xhci->cap_regs->rtsoff, XHCI_CAP_RTSOFF))*32);
+     RTSOFF_TO_BYTES(mmio_read_bits (&xhci->cap_regs->rtsoff, XHCI_CAP_RTSOFF)));
   xhci->db_regs = (struct xhci_doorbell_regs *)
     ((grub_uint8_t *)xhci->cap_regs +
-     (mmio_read_bits (&xhci->cap_regs->dboff, XHCI_CAP_DBOFF))*4);
+     DBOFF_TO_BYTES(mmio_read_bits (&xhci->cap_regs->dboff, XHCI_CAP_DBOFF)));
 
   /* Paranoia/sanity check: wait until controller is ready */
   maxtime = grub_get_time_ms () + 1000;
