@@ -345,11 +345,30 @@ struct xhci_slot_context {
 };
 
 struct xhci_foo {
+  int TODO;
 };
 
 #define NUM_DEVICE_CONTEXT_SUB_ELEMENTS 32
+/**
+ * Describes the characteristics and current state of individual USB devices
+ * attached to the host controller
+ */
 struct xhci_device_context {
   struct xhci_foo foo[NUM_DEVICE_CONTEXT_SUB_ELEMENTS];
+};
+
+/**
+ * Max USB devices supported by xHCI. Each device is assigned to a Device Slot
+ * ID.
+ */
+#define MAX_USB_DEVICES 255
+struct xhci_dcbaa
+{
+  //struct xhci_device_context *device_context[MAX_USB_DEVICES];
+  /* points to a Device Context. We have to ensure this is 64-bit, else we
+   * would have used real pointers.
+   */
+  grub_uint64_t device_context_ptr; /* dynamically allocated array, up to MAX_USB_DEVICES in size */
 };
 
 struct xhci
@@ -366,7 +385,9 @@ struct xhci
 
   /* Other data */
   grub_uint8_t num_enabled_slots;
-  struct grub_pci_dma_chunk *dcbaa; /* opaque pointer */
+  //struct grub_pci_dma_chunk *dcbaa; /* opaque pointer */
+  grub_uint64_t *dcbaa; /* virtual address */
+  //struct xhci_dcbaa *dcbaa;
 
   /* linked list */
   struct xhci *next;
@@ -1423,22 +1444,32 @@ static inline int xhci_nop ( struct xhci_device *xhci ) {
 }
 #endif
 
-/** Allocate memory and write the address of that memory the DCBAAP register.
+/** Allocate memory for xHC Device Context Base Address Array (DCBAA Pointer)
  *
  * Store a copy of the pointer in the struct xhci instance. The allocated
  * memory must be physically contiguous, 64-byte aligned and the physical
  * address must be written to DCBAAP.
  */
 static int
-xhci_configure_dcbaap(struct xhci *xhci)
+xhci_allocate_dcbaa(struct xhci *xhci)
 {
   grub_size_t len;
   //struct grub_pci_dma_chunk *dcbaap;
   const int min_align = 64;
 
-  int TODO;
-  len = xhci->num_enabled_slots * sizeof (TODO);
-  xhci->dcbaa = grub_memalign_dma32 (min_align, len);
+  len = xhci->num_enabled_slots * sizeof (xhci->dcbaa[0]);
+  xhci->dcbaa = (grub_uint64_t*)grub_memalign_dma32 (min_align, len);
+  return 0;
+}
+
+static int
+xhci_program_dcbaap(struct xhci *xhci)
+{
+  (void)xhci;
+  /* only 32-bit support */
+  //struct grub_pci_dma_chunk *dcbaap;
+  //xhci->dcbaa = grub_memalign_dma32 (min_align, len);
+  //mmio_write32(&xhci->oper_regs->dcbaap, xhci->dcbaa)
   return 0;
 }
 
@@ -1484,7 +1515,8 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   mmio_set_bits(&xhci->oper_regs->config, xhci->num_enabled_slots);
 
   /* Allocate memory and write the pointer to DCBAAP register */
-  xhci_configure_dcbaap(xhci);
+  xhci_allocate_dcbaa(xhci);
+  xhci_program_dcbaap(xhci);
 
   if (debug_enabled())
   {
