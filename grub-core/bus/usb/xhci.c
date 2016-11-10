@@ -1654,7 +1654,7 @@ xhci_allocate_dcbaa(struct xhci *xhci)
     return -1;
   }
 
-  xhci->dcbaa_len = xhci->num_enabled_slots * sizeof (xhci->dcbaa[0]);
+  xhci->dcbaa_len = xhci->max_device_slots * sizeof (xhci->dcbaa[0]) + 1;
   xhci->dcbaa = (grub_uint64_t*)grub_memalign_dma32 (min_align, xhci->dcbaa_len);
   if (!xhci->dcbaa)
   {
