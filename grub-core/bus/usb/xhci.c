@@ -514,9 +514,11 @@ struct xhci
 
   /* Other data */
   grub_uint8_t num_enabled_slots;
-  grub_uint64_t *dcbaa;     /* virtual address, dynamically allocated array */
+  grub_uint64_t *dcbaa;     /* virtual address, dynamically allocated array
+                               where each element points to a Slot Context */
   grub_uint32_t dcbaa_len;  /* size in bytes */
-  grub_uint64_t *scratchpad;    /* virtual address, dynamically allocated array */
+  grub_uint64_t *scratchpad;    /* virtual address, dynamically allocated array
+                                   for xHC private use */
   grub_uint32_t scratchpad_len; /* size in bytes */
 
   /* linked list */
@@ -1748,6 +1750,11 @@ xhci_setup_command_ring(struct xhci *xhci)
 {
   (void)xhci;
   xhci_trace("%s: TODO: implement", __func__);
+
+  //xhci_alloc_ring();
+
+  /* program CRCR register */
+
   return 0;
 }
 
