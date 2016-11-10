@@ -629,6 +629,20 @@ mmio_read_bits(const volatile grub_uint32_t *addr, const enum bits32 bits)
   return parse_reg(regval, bits);
 }
 
+/* Return modified copy of regval, shifting and maskin 'val' according to
+ * 'bits'.
+ */
+static inline grub_uint32_t
+build_reg(grub_uint32_t regval, const enum bits32 bits, grub_uint32_t val)
+{
+  const grub_uint32_t bitno = bits >> 16;
+  const grub_uint32_t width = bits & 0xff;
+
+  regval &= ~(((1 << width) - 1) << bitno);
+  regval |= val << bitno;
+  return regval;
+}
+
 /**
  * Write a MMIO register. Masking and shifting is done automatically with
  * 'bits'. The register is read first, so existing bits are preserved.
@@ -637,13 +651,8 @@ static inline void
 mmio_write_bits(volatile grub_uint32_t *addr, const enum bits32 bits, grub_uint32_t val)
 {
   grub_uint32_t regval;
-  const grub_uint32_t bitno = bits >> 16;
-  const grub_uint32_t width = bits & 0xff;
-
   regval = mmio_read32(addr);
-  regval &= ~(((1 << width) - 1) << bitno);
-  regval |= val << bitno;
-  mmio_write32(addr, regval);
+  mmio_write32(addr, build_reg(regval, bits, val));
 }
 
 enum xhci_portrs_type
@@ -1108,9 +1117,10 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
     xhci_dump_oper_portsc(xhci, port);
   }
   portsc = xhci_read_portrs (xhci, port, PORTSC);
-  if (portsc & XHCI_PORTSC_CCS)
+  if (parse_reg(portsc, XHCI_OP_PORTSC_CCS))
   {
     grub_printf ("xHCI port %d IS CONNECTED!!!\n", port);
+    grub_millisleep (5000);
   }
 
   if (debug_enabled())
