@@ -500,20 +500,6 @@ struct xhci_device_context {
   struct xhci_foo foo[NUM_DEVICE_CONTEXT_SUB_ELEMENTS];
 };
 
-/**
- * Max USB devices supported by xHCI. Each device is assigned to a Device Slot
- * ID.
- */
-#define MAX_USB_DEVICES 255
-struct xhci_dcbaa
-{
-  //struct xhci_device_context *device_context[MAX_USB_DEVICES];
-  /* points to a Device Context. We have to ensure this is 64-bit, else we
-   * would have used real pointers.
-   */
-  grub_uint64_t device_context_ptr; /* dynamically allocated array, up to MAX_USB_DEVICES in size */
-};
-
 struct xhci
 {
   /* Register addresses. */
@@ -528,8 +514,10 @@ struct xhci
 
   /* Other data */
   grub_uint8_t num_enabled_slots;
-  grub_uint64_t *dcbaa;     /* virtual address */
+  grub_uint64_t *dcbaa;     /* virtual address, dynamically allocated array */
   grub_uint32_t dcbaa_len;  /* size in bytes */
+  grub_uint64_t *scratchpad;    /* virtual address, dynamically allocated array */
+  grub_uint32_t scratchpad_len; /* size in bytes */
 
   /* linked list */
   struct xhci *next;
@@ -1686,6 +1674,64 @@ xhci_program_dcbaap(struct xhci *xhci)
   return 0;
 }
 
+/** Allocate memory and write the pointer to DCBAAP register */
+static int
+xhci_setup_dcbaa(struct xhci *xhci)
+{
+  int rc;
+  rc = xhci_allocate_dcbaa(xhci);
+  if (rc)
+    return rc;
+  return xhci_program_dcbaap(xhci);
+}
+
+/*
+ * The Scratchpad Buffer Array is host memory that are made available for
+ * private use of the xHC. The host must not touch the memory after passing it
+ * to the xHC.
+ */
+static int
+xhci_setup_scratchpad(struct xhci *xhci)
+{
+  const int min_align = 64;
+  int num_scratch_bufs;
+  grub_uint32_t scratchpad_bufs_phys;
+
+  if (xhci->scratchpad)
+  {
+    xhci_err ("scratchpad non-zero, possibly memory leak\n");
+    return -1;
+  }
+
+  num_scratch_bufs = mmio_read_bits(&xhci->cap_regs->hcsparams2,
+      XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_LO)
+    | (mmio_read_bits(&xhci->cap_regs->hcsparams2,
+      XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_HI) << 5);
+  xhci_trace("xHC needs %d scratchpad buffers\n", num_scratch_bufs);
+
+  xhci->scratchpad_len = num_scratch_bufs * sizeof (xhci->scratchpad[0]);
+
+  xhci->scratchpad = (grub_uint64_t*)grub_memalign_dma32 (min_align, xhci->scratchpad_len);
+  if (!xhci->scratchpad)
+  {
+    xhci_err ("out of memory, couldn't allocate Scratchpad memory\n");
+    return -1;
+  }
+
+  grub_memset(xhci->scratchpad, 0, xhci->scratchpad_len);
+
+  /* only 32-bit support */
+  scratchpad_bufs_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)xhci->scratchpad);
+  xhci_trace ("Scratchpad Buffers at 0x%08x (virt 0x%08x), len=%d\n",
+      scratchpad_bufs_phys, xhci->scratchpad, xhci->scratchpad_len);
+   /* The location of the Scratcphad Buffer array is defined by entry 0 of the
+    * DCBAA. Again, we onlys support 32-bit.
+    */
+  mmio_write32((grub_uint32_t*)&xhci->dcbaa, scratchpad_bufs_phys);
+  return 0;
+}
+
+
 /** Allocate command ring memory and program xHC */
 static int
 xhci_setup_command_ring(struct xhci *xhci)
@@ -1742,8 +1788,10 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
       xhci->num_enabled_slots);
 
   /* Allocate memory and write the pointer to DCBAAP register */
-  xhci_allocate_dcbaa(xhci);
-  xhci_program_dcbaap(xhci);
+  xhci_setup_dcbaa(xhci);
+
+  /* Allocate Scratchpad Buffer memory for the xHC */
+  xhci_setup_scratchpad(xhci);
 
   /* Setup Command Ring */
   xhci_setup_command_ring(xhci);
