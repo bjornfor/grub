@@ -528,9 +528,8 @@ struct xhci
 
   /* Other data */
   grub_uint8_t num_enabled_slots;
-  //struct grub_pci_dma_chunk *dcbaa; /* opaque pointer */
-  grub_uint32_t *dcbaa; /* virtual address */
-  grub_uint32_t dcbaa_len; /* size in bytes */
+  grub_uint64_t *dcbaa;     /* virtual address */
+  grub_uint32_t dcbaa_len;  /* size in bytes */
 
   /* linked list */
   struct xhci *next;
@@ -1656,7 +1655,7 @@ xhci_allocate_dcbaa(struct xhci *xhci)
   }
 
   xhci->dcbaa_len = xhci->num_enabled_slots * sizeof (xhci->dcbaa[0]);
-  xhci->dcbaa = (grub_uint32_t*)grub_memalign_dma32 (min_align, xhci->dcbaa_len);
+  xhci->dcbaa = (grub_uint64_t*)grub_memalign_dma32 (min_align, xhci->dcbaa_len);
   if (!xhci->dcbaa)
   {
     xhci_err ("out of memory, couldn't allocate DCBAA memory\n");
