@@ -520,8 +520,9 @@ struct xhci
   grub_uint8_t *scratchpads;    /* virtual address, dynamically allocated array */
   grub_uint8_t scratchpads_len;
   grub_uint64_t *scratchpad_arr;  /* virtual address, dynamically allocated array
-                                       with pointers to pagesized areas in
-                                       "scratchpads" memory for xHC private use */
+                                     with physical address pointers to
+                                     pagesized areas in "scratchpads" memory
+                                     for xHC private use */
   grub_uint32_t scratchpad_arr_len; /* size in bytes */
 
   /* linked list */
