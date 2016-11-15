@@ -517,9 +517,12 @@ struct xhci
   grub_uint64_t *dcbaa;     /* virtual address, dynamically allocated array
                                where each element points to a Slot Context */
   grub_uint32_t dcbaa_len;  /* size in bytes */
-  grub_uint64_t *scratchpad;    /* virtual address, dynamically allocated array
-                                   for xHC private use */
-  grub_uint32_t scratchpad_len; /* size in bytes */
+  grub_uint8_t *scratchpads;    /* virtual address, dynamically allocated array */
+  grub_uint8_t scratchpads_len;
+  grub_uint64_t *scratchpad_arr;  /* virtual address, dynamically allocated array
+                                       with pointers to pagesized areas in
+                                       "scratchpads" memory for xHC private use */
+  grub_uint32_t scratchpad_arr_len; /* size in bytes */
 
   /* linked list */
   struct xhci *next;
@@ -1714,13 +1717,10 @@ xhci_setup_scratchpad(struct xhci *xhci)
 {
   const int min_align = 64;
   int num_scratch_bufs;
-  grub_uint32_t scratchpad_bufs_phys;
-
-  if (xhci->scratchpad)
-  {
-    xhci_err ("scratchpad non-zero, possibly memory leak\n");
-    return -1;
-  }
+  int i;
+  grub_size_t pagesize;
+  grub_uint32_t scratchpad_phys;
+  grub_uint32_t scratchpad_arr_phys;
 
   num_scratch_bufs = mmio_read_bits(&xhci->cap_regs->hcsparams2,
       XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_LO)
@@ -1728,25 +1728,48 @@ xhci_setup_scratchpad(struct xhci *xhci)
       XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_HI) << 5);
   xhci_trace("xHC needs %d scratchpad buffers\n", num_scratch_bufs);
 
-  xhci->scratchpad_len = num_scratch_bufs * sizeof (xhci->scratchpad[0]);
+  if (!num_scratch_bufs)
+    return 0;
 
-  xhci->scratchpad = (grub_uint64_t*)grub_memalign_dma32 (min_align, xhci->scratchpad_len);
-  if (!xhci->scratchpad)
+  /* Allocate Scratchpad Buffers */
+  pagesize = xhci_pagesize_to_bytes(
+      mmio_read_bits(&xhci->oper_regs->pagesize, XHCI_OP_PAGESIZE));
+  xhci->scratchpads_len = num_scratch_bufs * pagesize;
+  xhci->scratchpads = (grub_uint8_t*)grub_memalign_dma32 (min_align, xhci->scratchpads_len);
+  if (!xhci->scratchpads)
   {
-    xhci_err ("out of memory, couldn't allocate Scratchpad memory\n");
+    xhci_err ("out of memory, couldn't allocate Scratchpad Buffer memory\n");
     return -1;
   }
+  grub_memset(xhci->scratchpads, 0, xhci->scratchpads_len);
 
-  grub_memset(xhci->scratchpad, 0, xhci->scratchpad_len);
+  /* Allocate Scratchpad Buffer Array, where each element points to a buffer */
+  xhci->scratchpad_arr_len = num_scratch_bufs * sizeof (xhci->scratchpad_arr[0]);
+  xhci->scratchpad_arr = (grub_uint64_t*)grub_memalign_dma32 (min_align, xhci->scratchpad_arr_len);
+  if (!xhci->scratchpad_arr)
+  {
+    xhci_err ("out of memory, couldn't allocate Scratchpad Buffer Array memory\n");
+    return -1;
+  }
+  grub_memset(xhci->scratchpad_arr, 0, xhci->scratchpad_arr_len);
 
-  /* only 32-bit support */
-  scratchpad_bufs_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)xhci->scratchpad);
-  xhci_trace ("Scratchpad Buffers at 0x%08x (virt 0x%08x), len=%d\n",
-      scratchpad_bufs_phys, xhci->scratchpad, xhci->scratchpad_len);
+  /* Fill Scratchpad Buffers Array with addresses of the scratch buffers */
+  for (i = 0; i < num_scratch_bufs; i++)
+  {
+    scratchpad_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)
+        (xhci->scratchpads + pagesize * i));
+    xhci->scratchpad_arr[i] = scratchpad_phys;
+  }
+
+  /* Write Scratchpad Buffers Array base address to xHC */
+  scratchpad_arr_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)xhci->scratchpad_arr);
+  xhci_trace ("Scratchpad Buffer Array at 0x%08x (virt 0x%08x), len=%d bytes\n",
+      scratchpad_arr_phys, xhci->scratchpad_arr, xhci->scratchpad_arr_len);
    /* The location of the Scratcphad Buffer array is defined by entry 0 of the
-    * DCBAA. Again, we onlys support 32-bit.
+    * DCBAA. We only support 32-bit.
     */
-  mmio_write32((grub_uint32_t*)&xhci->dcbaa, scratchpad_bufs_phys);
+  mmio_write32((grub_uint32_t*)&xhci->dcbaa, scratchpad_arr_phys);
+
   return 0;
 }
 
