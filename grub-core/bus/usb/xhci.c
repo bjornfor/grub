@@ -657,6 +657,13 @@ mmio_write_bits(volatile grub_uint32_t *addr, const enum bits32 bits, grub_uint3
   mmio_write32(addr, build_reg(regval, bits, val));
 }
 
+/* Convert raw PAGESIZE value from Operational Register to a size in bytes */
+static grub_size_t
+xhci_pagesize_to_bytes(int pagesize)
+{
+  return 1 << (pagesize + 12);
+}
+
 enum xhci_portrs_type
 {
   PORTSC = 0,
@@ -790,7 +797,7 @@ xhci_dump_oper(struct xhci *xhci)
 
   val32 = mmio_read32 (&xhci->oper_regs->pagesize);
   xhci_trace ("PAGESIZE=%d (%d bytes)\n",
-      val32, 1 << (val32 + 12));
+      val32, xhci_pagesize_to_bytes(val32));
 
   xhci_trace ("DNCTRL=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->dnctrl));
