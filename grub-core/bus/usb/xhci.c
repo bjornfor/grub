@@ -231,16 +231,6 @@ enum bits32
    */
 };
 
-/** Maximum device slots enabled */
-#define XHCI_CONFIG_MAX_SLOTS_EN(slots) ( (slots) << 0 )
-
-/** Maximum device slots enabled mask */
-#define XHCI_CONFIG_MAX_SLOTS_EN_MASK \
-  XHCI_CONFIG_MAX_SLOTS_EN ( 0xff )
-
-/* Offset relative to Operational Base */
-#define XHCI_PORTSC(port) (0x400 + (0x10 * (port - 1)))
-
 #define XHCI_ADDR_MEM_MASK	(~0xff)
 #define XHCI_POINTER_MASK	(~0x1f)
 
