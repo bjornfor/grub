@@ -251,55 +251,6 @@ enum
   XHCI_USBLEGSUP_OS_OWNED = (1 << 24)
 };
 
-
-/* Operational register PORTSC bits */
-enum
-{
-  XHCI_PORTSC_CCS = (  1 <<  0), /* Current Connect Status */
-  XHCI_PORTSC_PED = (  1 <<  1), /* Port Enabled/Disabled */
-  /* RsvdZ */
-  XHCI_PORTSC_OCA = (  1 <<  3), /* Over-current Active */
-  XHCI_PORTSC_PR  = (  1 <<  4), /* Port Reset */
-  XHCI_PORTSC_PLS = (0xf <<  5), /* Port Link State */
-  XHCI_PORTSC_PP  = (  1 <<  9), /* Port Power */
-  XHCI_PORTSC_PS  = (0xf << 10), /* Port Speed */
-  XHCI_PORTSC_PIC = (0x2 << 14), /* Port Indicator Control */
-  XHCI_PORTSC_LWS = (  1 << 16), /* Port Link State Write Strobe */
-  XHCI_PORTSC_CSC = (  1 << 17), /* Connect Status Change */
-  XHCI_PORTSC_PEC = (  1 << 18), /* Port Enabled/Disabled Change */
-  XHCI_PORTSC_WRC = (  1 << 19), /* Warm Port Reset Change */
-  XHCI_PORTSC_OCC = (  1 << 20), /* Over-current Change */
-  XHCI_PORTSC_PRC = (  1 << 21), /* Port Reset Change */
-  XHCI_PORTSC_PLC = (  1 << 22), /* Port Link State Change */
-  XHCI_PORTSC_CEC = (  1 << 23), /* Port Config Error Change */
-  XHCI_PORTSC_CAS = (  1 << 24), /* Cold Attach Status */
-  XHCI_PORTSC_WCE = (  1 << 25), /* Wake on Connect Enable */
-  XHCI_PORTSC_WDE = (  1 << 26), /* Wake on Disconnect Enable */
-  XHCI_PORTSC_WOE = (  1 << 27), /* Wake on Over-current Enable */
-  /* RsvdZ */
-  XHCI_PORTSC_DR  = (  1 << 30), /* Device Removable */
-  XHCI_PORTSC_WPR = (  1 << 31), /* Warm Port Reset */
-};
-
-/** Number of device slots */
-#define XHCI_HCSPARAMS1_SLOTS(params) ( ( (params) >> 0 ) & 0xff )
-
-/** Number of interrupters */
-#define XHCI_HCSPARAMS1_INTRS(params) ( ( (params) >> 8 ) & 0x3ff )
-
-/** Number of ports */
-#define XHCI_HCSPARAMS1_PORTS(params) ( ( (params) >> 24 ) & 0xff )
-
-/** Structural parameters 2 */
-#define XHCI_CAP_HCSPARAMS2 0x08
-
-/** Number of page-sized scratchpad buffers */
-#define XHCI_HCSPARAMS2_SCRATCHPADS(params) \
-	( ( ( (params) >> 16 ) & 0x3e0 ) | ( ( (params) >> 27 ) & 0x1f ) )
-
-/** Capability parameters */
-#define XHCI_CAP_HCCPARAMS1 0x10
-
 static int debug_enabled(void)
 {
   const char *debug = grub_env_get ("debug");
