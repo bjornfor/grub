@@ -45,6 +45,8 @@
 #include <grub/disk.h>
 #include <grub/cache.h>
 
+//#include "xhci-ipxe.h"
+
 GRUB_MOD_LICENSE ("GPLv3+");
 
 /* Where is the standard "offsetof" macro */
@@ -61,6 +63,9 @@ GRUB_MOD_LICENSE ("GPLv3+");
 
 /** For initializing enum bits values with start and end bit positions. */
 #define BITS(start, end) ((start << 16) | (end - start + 1))
+
+/** Obtain bitmask from BITS definition (only works for single bit masks) */
+#define BIT(bits_value) (1 << (bits_value >> 16))
 
 enum bits32
 {
@@ -229,10 +234,42 @@ enum bits32
   /*
    * Doorbell Registers
    */
+
+  /*
+   * TRB control word bits. These bits apply to the 3rd word (of 4) in a TRB. A
+   * word is 32-bit here. The meaning of the bits depend on the TRB type.
+   */
+  /* Only the TRB Type and the C bit is common to all TRBs. All other fields
+   * may vary according to the TRB Type.
+   */
+  XHCI_TRB_CTRL__TRB_TYPE = BITS(10, 15),
+  XHCI_TRB_CTRL__C = BITS(0, 0),
+
+  /* Normal TRB (Bulk and Interrupt transfer) */
+  XHCI_TRB_CTRL__BEI = BITS(9, 9),
+  XHCI_TRB_CTRL__IDT = BITS(6, 6),
+  XHCI_TRB_CTRL__IOC = BITS(5, 5),
+  XHCI_TRB_CTRL__CH  = BITS(4, 4),
+  XHCI_TRB_CTRL__NS  = BITS(3, 3),
+  XHCI_TRB_CTRL__ISP = BITS(2, 2),
+  XHCI_TRB_CTRL__ENT = BITS(1, 1),
+
+  /*
+   * TRB status word bits. These bits apply to the 2nd word (of 4) in a TRB.
+   */
+  /* Command Completion Event */
+  XHCI_TRB_STAT__COMPLETION_CODE = BITS(24, 31),
 };
 
 #define XHCI_ADDR_MEM_MASK	(~0xff)
 #define XHCI_POINTER_MASK	(~0x1f)
+#define XHCI_COMMAND_MAX_WAIT_MS 100
+
+/** Number of TRBs in the event ring
+ *
+ * This is a policy decision.
+ */
+#define XHCI_EVENT_TRBS_LOG2 6
 
 /* USB Legacy Support Capability (USBLEGSUP) bits. Section 7.1.1 in [spec]. */
 enum
@@ -409,6 +446,10 @@ struct xhci_run_regs {
 //  volatile grub_uint32_t porthlpmc;
 //};
 
+/*
+ * A.k.a. number of slots (index 0 is special, it's for the Host Controller
+ * itself)
+ */
 #define MAX_DOORBELL_ENTRIES 256
 
 /** Doorbell array registers */
@@ -428,17 +469,223 @@ struct xhci_slot_context {
   /* TODO */
 };
 
-struct xhci_foo {
-  int TODO;
+//struct xhci_foo {
+//  int TODO;
+//};
+//
+//#define NUM_DEVICE_CONTEXT_SUB_ELEMENTS 32
+///**
+// * Describes the characteristics and current state of individual USB devices
+// * attached to the host controller
+// */
+//struct xhci_device_context {
+//  struct xhci_slot_context slot_context;
+//  //struct xhci_foo foo[NUM_DEVICE_CONTEXT_SUB_ELEMENTS];
+//  union xhci_foo foo[NUM_DEVICE_CONTEXT_SUB_ELEMENTS];
+//};
+
+/* TRB Types */
+enum
+{
+  /* Allowed in transfer ring */
+  XHCI_TRB_TYPE_RESERVED = 0,
+  XHCI_TRB_TYPE_NORMAL = 1,
+  XHCI_TRB_TYPE_SETUP_STAGE = 2,
+  XHCI_TRB_TYPE_DATA_STAGE = 3,
+  XHCI_TRB_TYPE_STATUS_STAGE = 4,
+  XHCI_TRB_TYPE_ISOCH_ALLOWED = 5,
+  XHCI_TRB_TYPE_LINK = 6, /* exception: also allowed in command ring */
+  XHCI_TRB_TYPE_EVENT_DATA = 7,
+  XHCI_TRB_TYPE_NO_OP = 8,
+
+  /* Allowed in command ring */
+  XHCI_TRB_TYPE_ENABLE_SLOT_COMMAND = 9,
+  XHCI_TRB_TYPE_DISABLE_SLOT_COMMAND = 10,
+  XHCI_TRB_TYPE_ADDRESS_DEVICE_COMMAND = 11,
+  XHCI_TRB_TYPE_CONFIGURE_ENDPOINT_COMMAND = 12,
+  XHCI_TRB_TYPE_EVALUATE_CONTEXT_COMMAND = 13,
+  XHCI_TRB_TYPE_RESET_ENDPOINT_COMMAND = 14,
+  XHCI_TRB_TYPE_STOP_ENDPOINT_COMMAND = 15,
+  XHCI_TRB_TYPE_SET_TR_DEQUEUE_POINTER_COMMAND = 16,
+  XHCI_TRB_TYPE_RESET_DEVICE_COMMAND = 17,
+  XHCI_TRB_TYPE_FORCE_EVENT_COMMAND = 18, /* optional, used with virtualization only */
+  XHCI_TRB_TYPE_NEGOTIATE_BANDWIDTH_COMMAND = 19, /* optional */
+  XHCI_TRB_TYPE_SET_LATENCY_TOLERANCE_VALUE_COMMAND = 20, /* optional */
+  XHCI_TRB_TYPE_GET_PORT_BANDWIDTH_COMMAND = 21,
+  XHCI_TRB_TYPE_FORCE_HEADER_COMMAND = 22,
+  XHCI_TRB_TYPE_NO_OP_COMMAND = 23,
+
+  /* 24-31 reserved */
+
+  /* Allowed in event ring */
+  XHCI_TRB_TYPE_TRANSFER_EVENT = 32,
+  XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT = 33,
+  XHCI_TRB_TYPE_PORT_STATUS_CHANGE_EVENT = 34,
+  XHCI_TRB_TYPE_BANDWIDTH_REQUEST_EVENT = 35, /* optional */
+  XHCI_TRB_TYPE_DOORBELL_EVENT = 36, /* optional, used with virtualization only */
+  XHCI_TRB_TYPE_HOST_CONTROLLER_EVENT = 37,
+  XHCI_TRB_TYPE_DEVICE_NOTIFICATION_EVENT = 38,
+  XHCI_TRB_TYPE_MFINDEX_WRAP_EVENT = 39,
+
+  /* 40-47 reserved */
+
+  /* 48-63 vendor defined, optional in all rings */
 };
 
-#define NUM_DEVICE_CONTEXT_SUB_ELEMENTS 32
-/**
- * Describes the characteristics and current state of individual USB devices
- * attached to the host controller
- */
-struct xhci_device_context {
-  struct xhci_foo foo[NUM_DEVICE_CONTEXT_SUB_ELEMENTS];
+/* TRB Completion Codes */
+enum
+{
+  XHCI_TRB_COMPLETION_CODE__INVALID = 0,
+  XHCI_TRB_COMPLETION_CODE__SUCCESS = 1,
+  /* ... */
+};
+
+/** xHCI completion codes */
+enum xhci_completion_code
+{
+  /** Success */
+  XHCI_CMPLT_SUCCESS = 1,
+  /** Short packet */
+  XHCI_CMPLT_SHORT = 13,
+  /** Command ring stopped */
+  XHCI_CMPLT_CMD_STOPPED = 24,
+};
+
+/** A transfer request block */
+struct xhci_trb_common
+{
+  /** Reserved */
+  grub_uint64_t _reserved1;
+  /** Reserved */
+  grub_uint32_t _reserved2;
+  /** Flags */
+  grub_uint8_t flags;
+  /** Type */
+  grub_uint8_t type;
+  /** Reserved */
+  grub_uint16_t _reserved3;
+};
+
+/* The generalized TRB template */
+struct xhci_trb_template
+{
+  grub_uint64_t parameter;
+  grub_uint32_t status;
+  grub_uint32_t control;
+};
+
+/** A port status change transfer request block */
+struct xhci_trb_port_status
+{
+  /** Reserved */
+  grub_uint8_t reserved_a[3];
+  /** Port ID */
+  grub_uint8_t port;
+  /** Reserved */
+  grub_uint8_t reserved_b[7];
+  /** Completion code */
+  grub_uint8_t code;
+  /** Flags */
+  grub_uint8_t flags;
+  /** Type */
+  grub_uint8_t type;
+  /** Reserved */
+  grub_uint16_t reserved_c;
+};
+
+/** A port status change transfer request block */
+struct xhci_trb_host_controller
+{
+  /** Reserved */
+  grub_uint64_t _reserved1;
+  /** Reserved */
+  grub_uint8_t _reserved2[3];
+  /** Completion code */
+  grub_uint8_t code;
+  /** Flags */
+  grub_uint8_t flags;
+  /** Type */
+  grub_uint8_t type;
+  /** Reserved */
+  grub_uint16_t _reserved3;
+};
+
+/** A command completion event transfer request block */
+struct xhci_trb_complete
+{
+  /** Command TRB pointer */
+  grub_uint64_t command;
+  /** Parameter */
+  grub_uint8_t parameter[3];
+  /** Completion code */
+  grub_uint8_t code;
+  /** Flags */
+  grub_uint8_t flags;
+  /** Type */
+  grub_uint8_t type;
+  /** Virtual function ID */
+  grub_uint8_t vf;
+  /** Slot ID */
+  grub_uint8_t slot;
+};
+
+//struct xhci_trb_nop
+//{
+//  grub_uint32_t _resvdz[3];
+//  grub_uint32_t control;
+//};
+
+/* Transfer Request Block */
+union xhci_trb
+{
+  struct xhci_trb_template templ;
+  struct xhci_trb_common common;
+  struct xhci_trb_complete complete;
+  struct xhci_trb_host_controller host;
+  //struct xhci_trb_nop nop;
+  grub_uint32_t raw[4];
+};
+
+/* Transfer Request Block ring */
+struct xhci_trb_ring
+{
+  unsigned int prod;
+  unsigned int cons;
+  unsigned int mask;
+  unsigned int shift;
+  unsigned int link;
+  unsigned int slot;
+
+  /* Pointer to the Doorbell corresponding to this ring */
+  volatile grub_uint32_t *db_reg;
+  grub_uint32_t db_val; // the value written to *db_reg to notify the xHC
+
+  /* The actual TRBs in the ring, dynamically allocated from DMA pool, for
+   * contiguous physical memory
+   */
+  union xhci_trb *trbs;
+};
+
+/** An event ring segment */
+struct xhci_event_ring_segment
+{
+  /** Base address */
+  grub_uint64_t base;
+  /** Number of TRBs */
+  grub_uint32_t count;
+  /** Reserved */
+  grub_uint32_t reserved;
+};
+
+/** An event ring */
+struct xhci_event_ring
+{
+  /** Consumer counter */
+  unsigned int cons;
+  /** Event ring segment table */
+  struct xhci_event_ring_segment *segment;
+  /** Transfer request blocks */
+  union xhci_trb *trb;
 };
 
 struct xhci
@@ -466,6 +713,14 @@ struct xhci
                                      for xHC private use */
   grub_uint32_t scratchpad_arr_len; /* size in bytes */
 
+  union xhci_trb *pending;
+
+  struct xhci_trb_ring command_ring;
+
+  struct xhci_event_ring event_ring;
+
+  struct xhci_trb_ring transfer_ring;
+
   /* linked list */
   struct xhci *next;
 
@@ -487,6 +742,58 @@ struct xhci
   volatile grub_uint32_t *iobase_oper;	   /* Operational registers */
   //unsigned int reset;
 };
+
+/** Transfer request block cycle bit flag */
+#define XHCI_TRB_C 0x01
+
+/**
+ * Calculate doorbell register value
+ *
+ * @v target		Doorbell target
+ * @v stream		Doorbell stream ID
+ * @ret dbval		Doorbell register value
+ */
+#define XHCI_DBVAL(target, stream) (((stream) << 16) | (target))
+
+/**
+ * Calculate space used in TRB ring
+ *
+ * @v ring		TRB ring
+ * @ret fill		Number of entries used
+ */
+static unsigned int
+xhci_ring_fill(struct xhci_trb_ring *ring)
+{
+  return ring->prod - ring->cons;
+}
+
+/**
+ * Calculate space remaining in TRB ring
+ *
+ * @v ring		TRB ring
+ * @ret remaining	Number of entries remaining
+ *
+ * xHCI does not allow us to completely fill a ring; there must be at
+ * least one free entry (excluding the Link TRB).
+ */
+static unsigned int
+xhci_ring_remaining ( struct xhci_trb_ring *ring )
+{
+  unsigned int fill = xhci_ring_fill(ring);
+
+  /* We choose to utilise rings with ( 2^n + 1 ) entries, with
+   * the final entry being a Link TRB.  The maximum fill level
+   * is therefore
+   *
+   *   ( ( 2^n + 1 ) - 1 (Link TRB) - 1 (one slot always empty)
+   *       == ( 2^n - 1 )
+   *
+   * which is therefore equal to the ring mask.
+   */
+  xhci_dbg("xhci_ring_remaining: mask=%d fill=%d\n",
+      ring->mask, fill);
+  return ring->mask - fill;
+}
 
 static struct xhci *xhci_list;
 
@@ -538,6 +845,12 @@ static inline void
 mmio_write32 (volatile grub_uint32_t *addr, grub_uint32_t val)
 {
   *addr = grub_cpu_to_le32 (val);
+}
+
+static inline void
+mmio_write64 (volatile grub_uint64_t *addr, grub_uint64_t val)
+{
+  *addr = grub_cpu_to_le64 (val);
 }
 
 static inline void
@@ -616,6 +929,13 @@ enum xhci_portrs_type
   PORTLI = 8,
   PORTHLPMC = 12,
 };
+
+static void
+xhci_doorbell_notify (struct xhci_trb_ring *ring)
+{
+  // TODO: write barrier
+  mmio_write32(ring->db_reg, ring->db_val);
+}
 
 /* Read Port Register Set n of given type */
 static inline grub_uint32_t
@@ -1503,7 +1823,231 @@ xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
   return 0;
 }
 
+/**
+ * Dequeue a transfer request block
+ *
+ * @v ring		TRB ring
+ * @ret iobuf		I/O buffer
+ */
+static void
+xhci_dequeue (struct xhci_trb_ring *ring)
+{
+  union xhci_trb *trb;
+  unsigned int cons;
+  unsigned int mask;
+  unsigned int index;
+
+  /* Sanity check */
+  //assert ( xhci_ring_fill ( ring ) != 0 );
+
+  /* Update consumer counter */
+  cons = ring->cons++;
+  mask = ring->mask;
+  index = cons & mask;
+
+  /* Retrieve TRB */
+  trb = &ring->trbs[index];
+  /* TODO: now what? */
+  (void)trb;
+}
+
+/**
+ * Handle command completion event
+ *
+ * @v xhci		xHCI device
+ * @v trb		Command completion event
+ */
+static void
+xhci_complete (struct xhci *xhci, struct xhci_trb_complete *trb)
+{
+  int rc;
+
+  /* Ignore "command ring stopped" notifications */
+  if ( trb->code == XHCI_CMPLT_CMD_STOPPED ) {
+    xhci_dbg("command ring stopped\n");
+    return;
+  }
+
+  /* Ignore unexpected completions */
+  if ( ! xhci->pending ) {
+    rc = -1;
+    xhci_dbg("unexpected completion (code %d): %d\n",
+        trb->code, rc);
+    return;
+  }
+
+  /* Dequeue command TRB */
+  xhci_dequeue ( &xhci->command_ring );
+
+  /* Sanity check */
+  //assert ( xhci_ring_consumed ( &xhci->command_ring ) ==
+      //le64_to_cpu ( trb->command ) );
+
+  /* Record completion */
+  grub_memcpy ( xhci->pending, trb, sizeof ( *xhci->pending ) );
+  xhci->pending = NULL;
+}
+
 #if 0
+/**
+ * Handle port status event
+ *
+ * @v xhci		xHCI device
+ * @v trb		Port status event
+ */
+static void xhci_port_status ( struct xhci *xhci,
+			       struct xhci_trb_port_status *trb )
+{
+  struct usb_port *port = usb_port ( xhci->bus->hub, trb->port );
+  uint32_t portsc;
+
+  /* Sanity check */
+  assert ( ( trb->port > 0 ) && ( trb->port <= xhci->ports ) );
+
+  /* Record disconnections and clear changes */
+  portsc = readl ( xhci->op + XHCI_OP_PORTSC ( trb->port ) );
+  port->disconnected |= ( portsc & XHCI_PORTSC_CSC );
+  portsc &= ( XHCI_PORTSC_PRESERVE | XHCI_PORTSC_CHANGE );
+  writel ( portsc, xhci->op + XHCI_OP_PORTSC ( trb->port ) );
+
+  /* Report port status change */
+  usb_port_changed ( port );
+}
+#endif
+
+/**
+ * Handle host controller event
+ *
+ * @v xhci		xHCI device
+ * @v trb		Host controller event
+ */
+static void xhci_host_controller ( struct xhci *xhci,
+				   struct xhci_trb_host_controller *trb )
+{
+  int rc;
+  (void)xhci;
+
+  /* Construct error */
+  rc = -1;
+  xhci_dbg("XHCI host controller event (code %d): %d\n",
+      trb->code, rc);
+}
+
+/**
+ * Poll event ring
+ *
+ * @v xhci		xHCI device
+ */
+static void
+xhci_event_poll (struct xhci *xhci)
+{
+  struct xhci_event_ring *event = &xhci->event_ring;
+  union xhci_trb *trb;
+  unsigned int shift = XHCI_EVENT_TRBS_LOG2;
+  unsigned int count = ( 1 << shift );
+  unsigned int mask = ( count - 1 );
+  unsigned int consumed;
+  unsigned int type;
+
+  /* Poll for events */
+  for ( consumed = 0 ; ; consumed++ ) {
+
+    /* Stop if we reach an empty TRB */
+    //rmb();
+    trb = &event->trb[ event->cons & mask ];
+    if ( ! ( ( trb->common.flags ^
+            ( event->cons >> shift ) ) & XHCI_TRB_C ) )
+      break;
+
+    /* Handle TRB */
+    type = parse_reg(trb->templ.control, XHCI_TRB_CTRL__TRB_TYPE);
+    switch (type)
+    {
+      case XHCI_TRB_TYPE_TRANSFER_EVENT:
+        //xhci_transfer(xhci, &trb->transfer);
+        break;
+
+      case XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT:
+        //xhci_complete(xhci, &trb->complete);
+        break;
+
+      case XHCI_TRB_TYPE_PORT_STATUS_CHANGE_EVENT:
+        //xhci_port_status(xhci, &trb->port);
+        break;
+
+      case XHCI_TRB_TYPE_HOST_CONTROLLER_EVENT:
+        xhci_host_controller(xhci, &trb->host);
+        break;
+
+      default:
+        xhci_dbg("unrecognised event 0x%x\n:", event->cons );
+        break;
+    }
+
+    xhci_dbg("event 0x%x\n", event->cons);
+
+    /* Consume this TRB */
+    event->cons++;
+  }
+
+  /* Update dequeue pointer if applicable */
+  if (consumed) {
+    // TODO
+    //mmio_write32(&xhci->run_regs->, grub_dma_virt2phys(trb));
+        //xhci->run + XHCI_RUN_ERDP ( 0 ) );
+  }
+}
+
+/**
+ * Enqueue a transfer request block
+ *
+ * @v ring		TRB ring
+ * @v iobuf		I/O buffer (if any)
+ * @v trb		Transfer request block (with empty Cycle flag)
+ * @ret rc		Return status code
+ *
+ * This operation does not implicitly ring the doorbell register.
+ */
+static int
+xhci_enqueue(struct xhci_trb_ring *ring, /* struct io_buffer *iobuf, */
+    const union xhci_trb *trb)
+{
+  union xhci_trb *dest;
+  unsigned int prod;
+  unsigned int mask;
+  unsigned int index;
+  unsigned int cycle;
+
+  /* Sanity check */
+  //assert ( ! ( trb->common.flags & XHCI_TRB_C ) );
+
+  /* Fail if ring is full */
+  if (!xhci_ring_remaining(ring))
+    return -1;
+
+  /* Update producer counter (and link TRB, if applicable) */
+  prod = ring->prod++;
+  mask = ring->mask;
+  cycle = ( ( ~( prod >> ring->shift ) ) & XHCI_TRB_C );
+  index = ( prod & mask );
+  /* TODO: */
+  //if ( index == 0 )
+  //  ring->link->flags = ( XHCI_TRB_TC | ( cycle ^ XHCI_TRB_C ) );
+
+  /* Record I/O buffer */
+  //ring->iobuf[index] = iobuf;
+
+  /* Enqueue TRB */
+  dest = &ring->trbs[index];
+  dest->templ.parameter = trb->templ.parameter;
+  dest->templ.status = trb->templ.status;
+  //TODO: write barrier
+  dest->templ.control = ( trb->templ.control |
+      grub_cpu_to_le32 ( cycle ) );
+
+  return 0;
+}
+
 /**
  * Issue command and wait for completion
  *
@@ -1514,7 +2058,8 @@ xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
  * On a successful completion, the TRB will be overwritten with the
  * completion.
  */
-static int xhci_command(struct xhci *xhci, union xhci_trb *trb)
+static int
+xhci_command(struct xhci *xhci, union xhci_trb *trb)
 {
   struct xhci_trb_complete *complete = &trb->complete;
   unsigned int i;
@@ -1524,46 +2069,50 @@ static int xhci_command(struct xhci *xhci, union xhci_trb *trb)
   xhci->pending = trb;
 
   /* Enqueue the command */
-  if ( ( rc = xhci_enqueue ( &xhci->command, NULL, trb ) ) != 0 )
+  rc = xhci_enqueue(&xhci->command_ring, /*NULL,*/ trb);
+  if (rc != 0) {
+    xhci_dbg("xhci_enqueue failed\n");
     goto err_enqueue;
+  }
 
   /* Ring the command doorbell */
-  xhci_doorbell ( &xhci->command );
+  xhci_doorbell_notify(&xhci->command_ring);
 
   /* Wait for the command to complete */
-  for ( i = 0 ; i < XHCI_COMMAND_MAX_WAIT_MS ; i++ ) {
+  for (i = 0; i < XHCI_COMMAND_MAX_WAIT_MS; i++) {
 
     /* Poll event ring */
-    xhci_event_poll ( xhci );
+    xhci_event_poll(xhci);
 
     /* Check for completion */
-    if ( ! xhci->pending ) {
-      if ( complete->code != XHCI_CMPLT_SUCCESS ) {
-        rc = -ECODE ( complete->code );
-        DBGC ( xhci, "XHCI %s command failed (code "
-            "%d): %s\n", xhci->name, complete->code,
-            strerror ( rc ) );
-        DBGC_HDA ( xhci, 0, trb, sizeof ( *trb ) );
+    if (!xhci->pending) {
+      if (complete->code != XHCI_CMPLT_SUCCESS) {
+        rc = -1;
+        xhci_dbg("command failed, completion code %d\n",
+            complete->code, rc);
         return rc;
       }
       return 0;
     }
 
     /* Delay */
-    mdelay ( 1 );
+    grub_millisleep (1);
   }
 
   /* Timeout */
-  DBGC ( xhci, "XHCI %s timed out waiting for completion\n", xhci->name );
-  rc = -ETIMEDOUT;
+  xhci_dbg("timed out waiting for completion\n");
+  rc = -1;
 
   /* Abort command */
-  xhci_abort ( xhci );
+  //xhci_abort(xhci);
 
 err_enqueue:
   xhci->pending = NULL;
   return rc;
 }
+
+/** Transfer request block interrupt on completion flag */
+#define XHCI_TRB_IOC 0x20
 
 /**
  * Issue NOP and wait for completion
@@ -1571,23 +2120,24 @@ err_enqueue:
  * @v xhci		xHCI device
  * @ret rc		Return status code
  */
-static inline int xhci_nop ( struct xhci_device *xhci ) {
-	union xhci_trb trb;
-	struct xhci_trb_common *nop = &trb.common;
-	int rc;
+static inline int xhci_nop(struct xhci *xhci)
+{
+  union xhci_trb trb;
+  struct xhci_trb_common *nop = &trb.common;
+  int rc;
 
-	/* Construct command */
-	memset ( nop, 0, sizeof ( *nop ) );
-	nop->flags = XHCI_TRB_IOC;
-	nop->type = XHCI_TRB_NOP_CMD;
+  /* Construct command */
+  grub_memset(nop, 0, sizeof (*nop));
+  nop->flags = XHCI_TRB_IOC;
+  nop->type = XHCI_TRB_TYPE_NO_OP_COMMAND;
 
-	/* Issue command and wait for completion */
-	if ( ( rc = xhci_command ( xhci, &trb ) ) != 0 )
-		return rc;
+  /* Issue command and wait for completion */
+  rc = xhci_command(xhci, &trb);
+  if (rc != 0)
+    return rc;
 
-	return 0;
+  return 0;
 }
-#endif
 
 /** Allocate memory for xHC Device Context Base Address Array.
  *
@@ -1606,6 +2156,7 @@ xhci_allocate_dcbaa(struct xhci *xhci)
     return -1;
   }
 
+  /* +1 to make room for the scratchpad pointer, at index 0 */
   xhci->dcbaa_len = (xhci->max_device_slots + 1) * sizeof (xhci->dcbaa[0]);
   xhci->dcbaa = (grub_uint64_t*)grub_memalign_dma32 (min_align, xhci->dcbaa_len);
   if (!xhci->dcbaa)
@@ -1715,24 +2266,105 @@ xhci_setup_scratchpad(struct xhci *xhci)
   return 0;
 }
 
+#if 0
+/* Copied from iPXE */
+static int
+xhci_alloc_ring(struct xhci_device *xhci,
+    struct xhci_trb_ring *ring,
+    unsigned int shift, unsigned int slot,
+    unsigned int target, unsigned int stream)
+{
+  struct xhci_trb_link *link;
+  unsigned int count;
+  int rc;
+
+  /* Sanity check */
+  assert ( shift > 0 );
+
+  /* Initialise structure */
+  memset ( ring, 0, sizeof ( *ring ) );
+  ring->shift = shift;
+  count = ( 1U << shift );
+  ring->mask = ( count - 1 );
+  ring->len = ( ( count + 1 /* Link TRB */ ) * sizeof ( ring->trb[0] ) );
+  ring->db = ( xhci->db + ( slot * sizeof ( ring->dbval ) ) );
+  ring->dbval = XHCI_DBVAL ( target, stream );
+
+  /* Allocate I/O buffers */
+  ring->iobuf = zalloc ( count * sizeof ( ring->iobuf[0] ) );
+  if ( ! ring->iobuf ) {
+    rc = -ENOMEM;
+    goto err_alloc_iobuf;
+  }
+
+  /* Allocate TRBs */
+  ring->trb = malloc_dma ( ring->len, xhci_align ( ring->len ) );
+  if ( ! ring->trb ) {
+    rc = -ENOMEM;
+    goto err_alloc_trb;
+  }
+  memset ( ring->trb, 0, ring->len );
+
+  /* Initialise Link TRB */
+  link = &ring->trb[count].link;
+  link->next = cpu_to_le64 ( virt_to_phys ( ring->trb ) );
+  link->flags = XHCI_TRB_TC;
+  link->type = XHCI_TRB_LINK;
+  ring->link = link;
+
+  return 0;
+
+  free_dma ( ring->trb, ring->len );
+err_alloc_trb:
+  free ( ring->iobuf );
+err_alloc_iobuf:
+  return rc;
+}
+#endif
+
+/*
+ *
+ */
+static int
+xhci_setup_ring(struct xhci *xhci,
+    struct xhci_trb_ring *ring,
+    unsigned int shift, unsigned int slot,
+    unsigned int target, unsigned int stream)
+{
+  int min_align = 64;
+  int count = 1 << shift;
+  int len = (count + 1 /* Link TRB */) * sizeof (ring->trbs[0]);
+  (void)xhci;
+  xhci_trace("%s: TODO: implement\n", __func__);
+  ring->mask = count - 1;
+  ring->shift = shift;
+  ring->slot = slot;
+  ring->db_reg = &xhci->db_regs->doorbell[slot];
+  ring->db_val = XHCI_DBVAL(target, stream);
+
+  /* Allocate (physically contiguous) memory for the TRBs */
+  ring->trbs = (union xhci_trb *)grub_memalign_dma32 (min_align, len);
+
+  return -1;
+}
 
 /** Allocate command ring memory and program xHC */
 static int
 xhci_setup_command_ring(struct xhci *xhci)
 {
-  (void)xhci;
-  xhci_trace("%s: TODO: implement", __func__);
+  int ring_len_log2 = 3;
+  grub_uint32_t trbs_phys;
 
-  //xhci_alloc_ring();
-
-  /* program CRCR register */
-
+  xhci_setup_ring(xhci, &xhci->command_ring, ring_len_log2, 0, 0, 0);
+  trbs_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)xhci->command_ring.trbs);
+  mmio_write64(&xhci->oper_regs->crcr, trbs_phys | BIT(XHCI_OP_CRCR_RCS));
   return 0;
 }
 
 static int
 xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
 {
+  int rc;
   grub_int32_t hcsparams1;
   //grub_uint32_t hcsparams2;
   //grub_uint32_t hccparams1;
@@ -1785,7 +2417,7 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   /* Setup Command Ring */
   xhci_setup_command_ring(xhci);
 
-  /* Setup interrupts (not supported in this driver) */
+  /* Interrupts is not supported by this driver, so skipped */
 
   /* Start the controller so that it accepts dorbell notifications.
    * We can run commands and the root hub ports will begin reporting device
@@ -1800,7 +2432,11 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
    */
   mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 1);
 
-  if (debug_enabled())
+  rc = xhci_nop(xhci);
+  grub_printf("xhci_nop returned %d\n", rc);
+  grub_millisleep (10000);
+
+  if (0 && debug_enabled())
   {
     xhci_dump_cap(xhci);
     xhci_dump_oper(xhci);
