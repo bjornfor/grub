@@ -2378,7 +2378,6 @@ xhci_setup_event_ring(struct xhci *xhci)
   struct xhci_event_ring *event = &xhci->event_ring;
   unsigned int count;
   grub_size_t len;
-  int rc;
   int min_align = 64;
 
   /* Allocate event ring */
@@ -2404,10 +2403,12 @@ xhci_setup_event_ring(struct xhci *xhci)
   event->segment[0].base = grub_cpu_to_le64(grub_dma_virt2phys((void*)event->trb, (void*)event->trb));
   event->segment[0].count = grub_cpu_to_le32(count);
 
+#if 0
+
   /* Program event ring registers */
-  mmio_write32(&xhci->run_regs->ir_set[0].erstsz, 1);
-  mmio_write64(&xhci->run_regs->ir_set[0].erdp, grub_dma_virt2phys((void*)event->trb, (void*)event->trb));
-  mmio_write64(&xhci->run_regs->ir_set[0].erstba, grub_dma_virt2phys((void*)event->segment, (void*)event->segment));
+  //mmio_write32(&xhci->run_regs->ir_set[0].erstsz, 1);
+  //mmio_write64(&xhci->run_regs->ir_set[0].erdp, grub_dma_virt2phys((void*)event->trb, (void*)event->trb));
+  //mmio_write64(&xhci->run_regs->ir_set[0].erstba, grub_dma_virt2phys((void*)event->segment, (void*)event->segment));
 
   xhci_dbg("event ring [%08lx,%08lx) table [%08lx,%08lx)\n",
       grub_dma_virt2phys((void*)event->trb, (void*)event->trb),
@@ -2415,11 +2416,10 @@ xhci_setup_event_ring(struct xhci *xhci)
       grub_dma_virt2phys((void*)event->segment, (void*)event->segment),
       ( grub_dma_virt2phys((void*)event->segment, (void*)event->segment) +
         sizeof (event->segment[0])));
+#endif
   return 0;
 
   /* TODO: free resources in case of error? */
-
-  return rc;
 }
 
 static int
@@ -2479,7 +2479,8 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   xhci_setup_command_ring(xhci);
 
   /* Setup Event Ring */
-  //xhci_setup_event_ring(xhci);
+  rc = xhci_setup_event_ring(xhci);
+  grub_printf("xhci_setup_event_ring returned %d\n", rc);
 
   /* Interrupts is not supported by this driver, so skipped */
 
@@ -2496,8 +2497,9 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
    */
   mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 1);
 
-  rc = xhci_nop(xhci);
-  grub_printf("xhci_nop returned %d\n", rc);
+  (void)rc;
+  //rc = xhci_nop(xhci);
+  //grub_printf("xhci_nop returned %d\n", rc);
   grub_millisleep (10000);
 
   if (0 && debug_enabled())
