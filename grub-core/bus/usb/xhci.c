@@ -429,9 +429,23 @@ struct xhci_oper_regs {
   grub_uint32_t _reserved[1024];
 };
 
+struct xhci_interrupter_register_set
+{
+  grub_uint32_t iman;
+  grub_uint32_t imod;
+  grub_uint32_t erstsz;
+  grub_uint32_t _rsvdp;
+  grub_uint64_t erstba;
+  grub_uint64_t erdp;
+};
+
+#define NUM_INTERRUPTER_REGISTER_SETS 1024
+
 /** Runtime registers */
 struct xhci_run_regs {
   const grub_uint32_t microframe_index;
+  grub_uint8_t _rsvdz[0x1c];
+  struct xhci_interrupter_register_set ir_set[NUM_INTERRUPTER_REGISTER_SETS];
 };
 
 /** Port Register Set */
@@ -670,7 +684,7 @@ struct xhci_event_ring_segment
   /** Number of TRBs */
   grub_uint32_t count;
   /** Reserved */
-  grub_uint32_t reserved;
+  grub_uint32_t _reserved;
 };
 
 /** An event ring */
@@ -2349,13 +2363,63 @@ xhci_setup_ring(struct xhci *xhci,
 static int
 xhci_setup_command_ring(struct xhci *xhci)
 {
-  int ring_len_log2 = 3;
+  int ring_len_log2 = 3; // 2**ring_len_log2 entries
   grub_uint32_t trbs_phys;
 
   xhci_setup_ring(xhci, &xhci->command_ring, ring_len_log2, 0, 0, 0);
   trbs_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)xhci->command_ring.trbs);
   mmio_write64(&xhci->oper_regs->crcr, trbs_phys | BIT(XHCI_OP_CRCR_RCS));
   return 0;
+}
+
+static int
+xhci_setup_event_ring(struct xhci *xhci)
+{
+  struct xhci_event_ring *event = &xhci->event_ring;
+  unsigned int count;
+  grub_size_t len;
+  int rc;
+  int min_align = 64;
+
+  /* Allocate event ring */
+  count = 1 << XHCI_EVENT_TRBS_LOG2;
+  len = count * sizeof (event->trb[0]);
+  event->trb = (volatile union xhci_trb *)grub_memalign_dma32(min_align, len);
+  if (!event->trb) {
+    return -1;
+  }
+
+  for (unsigned int i = 0; i < len; i++)
+  {
+    event->trb[i] = (volatile union xhci_trb){0};
+  }
+
+  /* Allocate event ring segment table */
+  event->segment = (struct xhci_event_ring_segment *)grub_memalign_dma32(
+      sizeof (event->segment[0]), sizeof (event->segment[0]));
+  if (!event->segment) {
+    return -1;
+  }
+  event->segment[0] = (volatile struct xhci_event_ring_segment){0};
+  event->segment[0].base = grub_cpu_to_le64(grub_dma_virt2phys((void*)event->trb, (void*)event->trb));
+  event->segment[0].count = grub_cpu_to_le32(count);
+
+  /* Program event ring registers */
+  mmio_write32(&xhci->run_regs->ir_set[0].erstsz, 1);
+  mmio_write64(&xhci->run_regs->ir_set[0].erdp, grub_dma_virt2phys((void*)event->trb, (void*)event->trb));
+  mmio_write64(&xhci->run_regs->ir_set[0].erstba, grub_dma_virt2phys((void*)event->segment, (void*)event->segment));
+
+  xhci_dbg("event ring [%08lx,%08lx) table [%08lx,%08lx)\n",
+      grub_dma_virt2phys((void*)event->trb, (void*)event->trb),
+      ( grub_dma_virt2phys((void*)event->trb, (void*)event->trb) + len ),
+      grub_dma_virt2phys((void*)event->segment, (void*)event->segment),
+      ( grub_dma_virt2phys((void*)event->segment, (void*)event->segment) +
+        sizeof (event->segment[0])));
+  return 0;
+
+  /* TODO: free resources in case of error? */
+
+  return rc;
 }
 
 static int
@@ -2413,6 +2477,9 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
 
   /* Setup Command Ring */
   xhci_setup_command_ring(xhci);
+
+  /* Setup Event Ring */
+  //xhci_setup_event_ring(xhci);
 
   /* Interrupts is not supported by this driver, so skipped */
 
