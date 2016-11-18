@@ -380,10 +380,6 @@ pci_config_write32 (grub_pci_device_t dev, unsigned int reg, grub_uint32_t val)
 
 /** Capability registers */
 struct xhci_cap_regs {
-  /* These are read only, so we don't need volatile */
-  //const grub_uint8_t caplength;
-  //const grub_uint8_t _rsvd1;
-  //const grub_uint16_t hciversion;
   const grub_uint32_t caplength_and_hciversion;
   const grub_uint32_t hcsparams1;
   const grub_uint32_t hcsparams2;
@@ -398,52 +394,52 @@ struct xhci_cap_regs {
 /** Operational registers */
 struct xhci_oper_regs {
   /** USB Command */
-  volatile grub_uint32_t usbcmd;
+  grub_uint32_t usbcmd;
   /** USB Status */
-  volatile grub_uint32_t usbsts;
+  grub_uint32_t usbsts;
   /* Page Size */
-  volatile grub_uint32_t pagesize;
+  grub_uint32_t pagesize;
   /** Reserved 0x0c-0x13 */
   grub_uint32_t _rsvdz1[2];
   /** Device Notification Control */
-  volatile grub_uint32_t dnctrl;
+  grub_uint32_t dnctrl;
   /** Command Ring Control */
   union {
     struct {
-      volatile grub_uint32_t crcr_lo;
-      volatile grub_uint32_t crcr_hi;
+      grub_uint32_t crcr_lo;
+      grub_uint32_t crcr_hi;
     };
-    volatile grub_uint64_t crcr;
+    grub_uint64_t crcr;
   };
   /** Reserved 0x20-0x2F */
   grub_uint32_t _rsvdz2[4];
   /** Device Context Base Address Array Pointer */
   union {
     struct {
-      volatile grub_uint32_t dcbaap_lo;
-      volatile grub_uint32_t dcbaap_hi;
+      grub_uint32_t dcbaap_lo;
+      grub_uint32_t dcbaap_hi;
     };
-    volatile grub_uint64_t dcbaap;
+    grub_uint64_t dcbaap;
   };
   /** Configure */
-  volatile grub_uint32_t config;
+  grub_uint32_t config;
   /** Reserved 0x03c-0x3ff */
   grub_uint32_t _rsvdz4[241];
   /** Port Register Set 1-MaxPorts (0x400-0x13ff) */
-  volatile grub_uint32_t _reserved[1024];
+  grub_uint32_t _reserved[1024];
 };
 
 /** Runtime registers */
 struct xhci_run_regs {
-  const volatile grub_uint32_t microframe_index;
+  const grub_uint32_t microframe_index;
 };
 
 /** Port Register Set */
 //struct xhci_port_reg_set {
-//  volatile grub_uint32_t portsc;
-//  volatile grub_uint32_t portpmsc;
-//  volatile grub_uint32_t portli;
-//  volatile grub_uint32_t porthlpmc;
+//  grub_uint32_t portsc;
+//  grub_uint32_t portpmsc;
+//  grub_uint32_t portli;
+//  grub_uint32_t porthlpmc;
 //};
 
 /*
@@ -454,7 +450,7 @@ struct xhci_run_regs {
 
 /** Doorbell array registers */
 struct xhci_doorbell_regs {
-  volatile grub_uint32_t doorbell[MAX_DOORBELL_ENTRIES];
+  grub_uint32_t doorbell[MAX_DOORBELL_ENTRIES];
 };
 
 /** Construct slot context device info */
@@ -658,12 +654,12 @@ struct xhci_trb_ring
 
   /* Pointer to the Doorbell corresponding to this ring */
   volatile grub_uint32_t *db_reg;
-  grub_uint32_t db_val; // the value written to *db_reg to notify the xHC
+  volatile grub_uint32_t db_val; // the value written to *db_reg to notify the xHC
 
   /* The actual TRBs in the ring, dynamically allocated from DMA pool, for
    * contiguous physical memory
    */
-  union xhci_trb *trbs;
+  volatile union xhci_trb *trbs;
 };
 
 /** An event ring segment */
@@ -685,7 +681,7 @@ struct xhci_event_ring
   /** Event ring segment table */
   struct xhci_event_ring_segment *segment;
   /** Transfer request blocks */
-  union xhci_trb *trb;
+  volatile union xhci_trb *trb;
 };
 
 struct xhci
@@ -713,7 +709,7 @@ struct xhci
                                      for xHC private use */
   grub_uint32_t scratchpad_arr_len; /* size in bytes */
 
-  union xhci_trb *pending;
+  volatile union xhci_trb *pending;
 
   struct xhci_trb_ring command_ring;
 
@@ -1832,7 +1828,7 @@ xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
 static void
 xhci_dequeue (struct xhci_trb_ring *ring)
 {
-  union xhci_trb *trb;
+  volatile union xhci_trb *trb;
   unsigned int cons;
   unsigned int mask;
   unsigned int index;
@@ -1858,7 +1854,7 @@ xhci_dequeue (struct xhci_trb_ring *ring)
  * @v trb		Command completion event
  */
 static void
-xhci_complete (struct xhci *xhci, struct xhci_trb_complete *trb)
+xhci_complete (struct xhci *xhci, volatile struct xhci_trb_complete *trb)
 {
   int rc;
 
@@ -1884,7 +1880,8 @@ xhci_complete (struct xhci *xhci, struct xhci_trb_complete *trb)
       //le64_to_cpu ( trb->command ) );
 
   /* Record completion */
-  grub_memcpy ( xhci->pending, trb, sizeof ( *xhci->pending ) );
+  *trb = xhci->pending->complete;
+
   xhci->pending = NULL;
 }
 
@@ -1922,7 +1919,7 @@ static void xhci_port_status ( struct xhci *xhci,
  * @v trb		Host controller event
  */
 static void xhci_host_controller ( struct xhci *xhci,
-				   struct xhci_trb_host_controller *trb )
+				   volatile struct xhci_trb_host_controller *trb )
 {
   int rc;
   (void)xhci;
@@ -1942,7 +1939,7 @@ static void
 xhci_event_poll (struct xhci *xhci)
 {
   struct xhci_event_ring *event = &xhci->event_ring;
-  union xhci_trb *trb;
+  volatile union xhci_trb *trb;
   unsigned int shift = XHCI_EVENT_TRBS_LOG2;
   unsigned int count = ( 1 << shift );
   unsigned int mask = ( count - 1 );
@@ -2010,9 +2007,9 @@ xhci_event_poll (struct xhci *xhci)
  */
 static int
 xhci_enqueue(struct xhci_trb_ring *ring, /* struct io_buffer *iobuf, */
-    const union xhci_trb *trb)
+    const volatile union xhci_trb *trb)
 {
-  union xhci_trb *dest;
+  volatile union xhci_trb *dest;
   unsigned int prod;
   unsigned int mask;
   unsigned int index;
