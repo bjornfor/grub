@@ -29,12 +29,12 @@ Create a disk image with GRUB on it:
   dd if=/dev/zero of=disk.img bs=1M count=50
   parted disk.img mklabel msdos
   parted disk.img mkpart primary 1M 100%
-  sudo kpartx -s -a disk.img   # creates loop1p1 on my system (loopN is dynamically allocated)
-  sudo mkfs.ext3 /dev/mapper/loop1p1
-  sudo mount /dev/mapper/loop1p1 mnt
-  sudo grub-install --no-floppy --grub-mkdevicemap=<(printf '(hd0) /dev/loop1\n') --root-directory=$PWD/mnt /dev/loop1
+  sudo kpartx -s -a disk.img   # creates loop0p1 on my system (loopN is dynamically allocated)
+  sudo mkfs.ext3 /dev/mapper/loop0p1
+  sudo mount /dev/mapper/loop0p1 mnt
+  sudo grub-install --no-floppy --grub-mkdevicemap=<(printf '(hd0) /dev/loop0\n') --root-directory=$PWD/mnt /dev/loop0
   sudo umount mnt
-  sudo losetup -d /dev/loop1
+  sudo losetup -d /dev/loop0
   sudo kpartx -d disk.img     ### TODO: resolve error messages
 
 Now run QEMU:
