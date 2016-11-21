@@ -35,7 +35,7 @@ Create a disk image with GRUB on it:
   sudo grub-install --no-floppy --grub-mkdevicemap=<(printf '(hd0) /dev/loop0\n') --root-directory=$PWD/mnt /dev/loop0
   sudo umount mnt
   sudo losetup -d /dev/loop0
-  sudo kpartx -d disk.img     ### TODO: resolve error messages
+  sudo kpartx -d disk.img
 
 Now run QEMU:
 
