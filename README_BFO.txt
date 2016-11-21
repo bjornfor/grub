@@ -20,7 +20,7 @@ Installing GRUB to a disk image
 
 First ensure that GRUB is built with libdevmapper support. GRUB from Ubuntu
 16.04 has that. If building from source, ensure that the libdevmapper-dev
-package is installed, or else GRUB will fail to install to a loop device):
+package is installed, or else GRUB will fail to install to a loop device:
 
   sudo apt install libdevmapper-dev
 
