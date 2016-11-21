@@ -39,6 +39,6 @@ Create a disk image with GRUB on it:
 
 Now run QEMU:
 
-  qemu-system-x86 disk.img
+  qemu-system-x86_64 -drive file=disk.img,format=raw
 
 TODO: xHCI controller in QEMU.
