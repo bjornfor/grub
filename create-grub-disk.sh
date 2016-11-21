@@ -26,7 +26,6 @@ sudo cp _install/lib/grub/i386-pc/xhci.mod "$PWD"/mnt/boot/grub/i386-pc/
 sudo cp _install/lib/grub/i386-pc/xhci.module "$PWD"/mnt/boot/grub/i386-pc/
 
 sudo umount mnt
-sudo losetup -d /dev/loop0
 sudo kpartx -d disk.img
 
 if [ "$1" = "run" ]; then
