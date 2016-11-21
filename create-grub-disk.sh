@@ -10,6 +10,7 @@ parted disk.img mkpart primary 1M 100%
 sudo kpartx -s -a disk.img   # creates loop0p1 on my system (loopN is dynamically allocated)
 
 sudo mkfs.ext3 /dev/mapper/loop0p1
+mkdir -p mnt
 sudo mount /dev/mapper/loop0p1 mnt
 sudo _install/sbin/grub-install --no-floppy --grub-mkdevicemap=<(printf '(hd0) /dev/loop0\n') --root-directory=$PWD/mnt /dev/loop0
 
