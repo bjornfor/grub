@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+nix-shell -p bison flex gnumake automake autoconf lvm2 --command "export hardeningDisable=all; return"
