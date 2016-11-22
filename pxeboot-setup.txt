@@ -1,0 +1,56 @@
+How to setup PXE server on Ubuntu 16.04 Desktop
+===============================================
+Bjørn Forsman, 2016-10-14
+
+This howto is for setting up a PXE server (DHCP + TFTP) on Ubuntu 16.04,
+desktop edition. This assumes the machine has a 2nd dedicated network
+interface.
+
+Setup static IP address for the network interface by adding this to
+`/etc/network/interfaces`:
+
+  auto enp0s8
+  iface enp0s8 inet static
+      address 192.168.9.1
+      netmask 255.255.255.0
+      gateway 192.168.9.1
+
+Restart networking for the changes to take effect:
+
+  /etc/init.d/networking restart
+
+Install pxelinux and copy needed files to /srv/tftp:
+
+  sudo apt install pxelinux
+  sudo mkdir -p /srv/tftp/pxelinux
+  sudo cp /usr/lib/PXELINUX/pxelinux.0 /srv/tftp/pxelinux/
+  sudo cp /usr/lib/syslinux/modules/bios/ldlinux.c32 /srv/tftp/pxelinux/
+
+Create the directory to hold pxelinux configuration file:
+
+  sudo mkdir /srv/tftp/pxelinux/pxelinux.cfg
+
+Add this text to a file in the pxelinux configuration directory
+/srv/tftp/pxelinux/pxelinux.cfg/, either in a file named 'default' or a one
+of the patterns that identify a client or group of clients (serial number, IPv4
+address range... see PXELINUX documentation):
+
+  prompt 0
+  default setup1
+  timeout 0
+  
+  label setup1
+  kernel vmlinuz-setup1
+  append initrd=initrd-setup1.img
+
+Install dnsmasq server:
+
+  sudo apt install dnsmasq
+
+Add the following text to `/etc/dnsmasq.conf`:
+
+  interface=enp0s8
+  dhcp-range=192.168.9.100,192.168.9.200,6h
+  dhcp-boot=pxelinux/pxelinux.0
+  enable-tftp
+  tftp-root=/srv/tftp
