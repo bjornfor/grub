@@ -42,3 +42,9 @@ Now run QEMU:
   qemu-system-x86_64 -drive file=disk.img,format=raw
 
 TODO: xHCI controller in QEMU.
+
+
+PXE boot with QEMU user mode networking
+---------------------------------------
+
+  qemu-system-x86_64 -boot n -net nic -net user,tftp=/srv/tftp,bootfile=/pxelinux/pxelinux.0
