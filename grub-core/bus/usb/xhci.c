@@ -2388,7 +2388,7 @@ xhci_setup_event_ring(struct xhci *xhci)
     return -1;
   }
 
-  for (unsigned int i = 0; i < len; i++)
+  for (unsigned int i = 0; i < count; i++)
   {
     event->trb[i] = (volatile union xhci_trb){0};
   }
