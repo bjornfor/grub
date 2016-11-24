@@ -555,6 +555,8 @@ enum xhci_completion_code
 {
   /** Success */
   XHCI_CMPLT_SUCCESS = 1,
+  /** Error */
+  XHCI_CMPLT_ERROR = 5,
   /** Short packet */
   XHCI_CMPLT_SHORT = 13,
   /** Command ring stopped */
@@ -1980,7 +1982,7 @@ xhci_event_poll (struct xhci *xhci)
         break;
 
       case XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT:
-        //xhci_complete(xhci, &trb->complete);
+        xhci_complete(xhci, &trb->complete);
         break;
 
       case XHCI_TRB_TYPE_PORT_STATUS_CHANGE_EVENT:
