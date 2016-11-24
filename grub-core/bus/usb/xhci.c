@@ -1972,6 +1972,7 @@ xhci_event_poll (struct xhci *xhci)
 
     /* Handle TRB */
     type = parse_reg(trb->templ.control, XHCI_TRB_CTRL__TRB_TYPE);
+    xhci_dbg("processing event type %d\n", type);
     switch (type)
     {
       case XHCI_TRB_TYPE_TRANSFER_EVENT:
@@ -1995,7 +1996,7 @@ xhci_event_poll (struct xhci *xhci)
         break;
     }
 
-    xhci_dbg("event 0x%x\n", event->cons);
+    xhci_dbg("event->cons: %d\n", event->cons);
 
     /* Consume this TRB */
     event->cons++;
