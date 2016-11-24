@@ -1406,7 +1406,7 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   if (parse_reg(portsc, XHCI_OP_PORTSC_CCS))
   {
     grub_printf ("xHCI port %d IS CONNECTED!!!\n", port);
-    grub_millisleep (5000);
+    grub_millisleep (1000);
   }
 
   if (debug_enabled())
