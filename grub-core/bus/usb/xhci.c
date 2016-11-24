@@ -2399,16 +2399,15 @@ xhci_setup_event_ring(struct xhci *xhci)
   if (!event->segment) {
     return -1;
   }
+
   event->segment[0] = (volatile struct xhci_event_ring_segment){0};
   event->segment[0].base = grub_cpu_to_le64(grub_dma_virt2phys((void*)event->trb, (void*)event->trb));
   event->segment[0].count = grub_cpu_to_le32(count);
 
-#if 0
-
   /* Program event ring registers */
-  //mmio_write32(&xhci->run_regs->ir_set[0].erstsz, 1);
-  //mmio_write64(&xhci->run_regs->ir_set[0].erdp, grub_dma_virt2phys((void*)event->trb, (void*)event->trb));
-  //mmio_write64(&xhci->run_regs->ir_set[0].erstba, grub_dma_virt2phys((void*)event->segment, (void*)event->segment));
+  mmio_write32(&xhci->run_regs->ir_set[0].erstsz, 1);
+  mmio_write64(&xhci->run_regs->ir_set[0].erdp, grub_dma_virt2phys((void*)event->trb, (void*)event->trb));
+  mmio_write64(&xhci->run_regs->ir_set[0].erstba, grub_dma_virt2phys((void*)event->segment, (void*)event->segment));
 
   xhci_dbg("event ring [%08lx,%08lx) table [%08lx,%08lx)\n",
       grub_dma_virt2phys((void*)event->trb, (void*)event->trb),
@@ -2416,7 +2415,6 @@ xhci_setup_event_ring(struct xhci *xhci)
       grub_dma_virt2phys((void*)event->segment, (void*)event->segment),
       ( grub_dma_virt2phys((void*)event->segment, (void*)event->segment) +
         sizeof (event->segment[0])));
-#endif
   return 0;
 
   /* TODO: free resources in case of error? */
