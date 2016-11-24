@@ -2496,8 +2496,8 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 1);
 
   (void)rc;
-  //rc = xhci_nop(xhci);
-  //grub_printf("xhci_nop returned %d\n", rc);
+  rc = xhci_nop(xhci);
+  grub_printf("xhci_nop returned %d\n", rc);
   grub_millisleep (10000);
 
   if (0 && debug_enabled())
