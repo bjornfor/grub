@@ -2781,6 +2781,7 @@ xhci_pci_iter (grub_pci_device_t dev,
 		    void *data __attribute__ ((unused)))
 {
   int err;
+  int ac64;
   struct xhci *xhci;
   grub_uint32_t class_code;
   grub_uint32_t base;
@@ -2842,9 +2843,10 @@ xhci_pci_iter (grub_pci_device_t dev,
   }
   xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
       xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
-  xhci_dbg("XHCI-%s: SBRN=%02x scratch_bufs=%d (arr @ 0x%08x) pagesize=%d\n",
+  ac64 = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_AC64);
+  xhci_dbg("XHCI-%s: SBRN=%02x scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
       xhci->name, xhci->sbrn, xhci->num_scratch_bufs, xhci->scratchpad_arr,
-      xhci->pagesize);
+      xhci->pagesize, ac64);
 
   grub_millisleep(10000);
 
