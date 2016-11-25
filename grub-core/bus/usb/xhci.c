@@ -1408,6 +1408,7 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   if (debug_enabled())
   {
     xhci_dump_oper_portsc(xhci, port);
+    grub_printf ("\n");
   }
   portsc = xhci_read_portrs (xhci, port, PORTSC);
   if (parse_reg(portsc, XHCI_OP_PORTSC_CCS))
