@@ -1012,6 +1012,33 @@ xhci_dump_cap(struct xhci *xhci)
   return 0;
 }
 
+#if 0
+/**
+ * Transcribe port speed (for debugging)
+ *
+ * @v psi		Protocol speed ID
+ * @ret speed		Transcribed speed
+ */
+static const char *
+xhci_speed_name (uint32_t psi)
+{
+  static const char *exponents[4] = { "", "k", "M", "G" };
+  static char buf[10 /* "xxxxxXbps" + NUL */];
+  unsigned int mantissa;
+  unsigned int exponent;
+
+  /* Extract mantissa and exponent */
+  mantissa = XHCI_SUPPORTED_PSI_MANTISSA ( psi );
+  exponent = XHCI_SUPPORTED_PSI_EXPONENT ( psi );
+
+  /* Transcribe speed */
+  snprintf ( buf, sizeof ( buf ), "%d%sbps",
+      mantissa, exponents[exponent] );
+  return buf;
+}
+#endif
+
+
 static void
 xhci_dump_oper_portsc(struct xhci *xhci, int port)
 {
@@ -2768,6 +2795,172 @@ static unsigned long pci_bar_start ( struct grub_pci_device *dev, unsigned int r
     }
 }
 
+/** xHCI extended capability ID */
+#define XHCI_XECP_ID(xecp) (((xecp) >> 0) & 0xff)
+
+/**
+ * Find extended capability
+ *
+ * @v xhci		xHCI device
+ * @v cap_id		Capability ID
+ * @v offset		Offset to previous extended capability instance, or zero
+ * @ret extended capability register value, or 0 if not found
+ */
+static grub_uint32_t
+xhci_get_extended_capability (struct xhci *xhci, unsigned int cap_id)
+{
+  grub_uint32_t xecp_offset;
+  const volatile grub_uint32_t *xecp;
+  grub_uint32_t cap;
+  grub_size_t max_caps = 1024; /* guard against infinite loop */
+
+  xecp_offset = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_XECP);
+  if (!xecp_offset)
+    return 0;
+
+  xecp = &xhci->cap_regs->caplength_and_hciversion + xecp_offset;
+
+  /* Locate the extended capability */
+  for (grub_size_t i=0; i<max_caps; i++)
+  {
+    /* Get current capability */
+    cap = mmio_read32(xecp);
+    if (XHCI_XECP_ID(cap) == cap_id)
+    {
+      xhci_dbg("Found capability id %d at position %d in xecp list\n");
+      return cap;
+    } else if (XHCI_XECP_ID(cap) == 0)
+    {
+      return 0;
+    } else {
+      xecp += (cap >> 8) & 0xff;
+    }
+  }
+
+  xhci_err("xhci_get_extended_capability error\n");
+  return 0;
+}
+
+static int xhci_extended_capabilities_foreach(struct xhci *xhci,
+    int (*callback)(struct xhci *xhci, grub_uint32_t capreg))
+{
+  grub_uint32_t xecp_offset;
+  const volatile grub_uint32_t *xecp;
+  grub_uint32_t cap;
+  grub_size_t max_caps = 1024; /* guard against infinite loop */
+  int rc;
+
+  xecp_offset = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_XECP);
+  if (!xecp_offset)
+    return 0;
+
+  xecp = &xhci->cap_regs->caplength_and_hciversion + xecp_offset;
+
+  /* Locate the extended capability */
+  for (grub_size_t i=0; i<max_caps; i++)
+  {
+    /* Get current capability */
+    cap = mmio_read32(xecp);
+    rc = callback(xhci, cap);
+    if (rc)
+    {
+      return rc;
+    } else if (XHCI_XECP_ID(cap) == 0)
+    {
+      return 0;
+    } else {
+      xecp += (cap >> 8) & 0xff;
+    }
+  }
+
+  xhci_err("xhci_get_extended_capability error\n");
+  return -1;
+}
+
+/** USB legacy support extended capability */
+#define XHCI_XECP_ID_LEGACY 1
+
+/**
+ * Initialise USB legacy support
+ *
+ * @v xhci		xHCI device
+ */
+static void
+xhci_legacy_init (struct xhci *xhci)
+{
+  grub_uint32_t legacy;
+  //grub_uint8_t bios;
+
+  /* Locate USB legacy support capability (if present) */
+  legacy = xhci_get_extended_capability (xhci, XHCI_XECP_ID_LEGACY);
+  if (!legacy) {
+    /* Not an error; capability may not be present */
+    xhci_dbg("XHCI-%s has no USB legacy support capability\n",
+        xhci->name );
+    return;
+  }
+
+  ///* Check if legacy USB support is enabled */
+  //bios = readb ( xhci->cap + legacy + XHCI_USBLEGSUP_BIOS );
+  //if ( ! ( bios & XHCI_USBLEGSUP_BIOS_OWNED ) ) {
+  //  /* Not an error; already owned by OS */
+  //  DBGC ( xhci, "XHCI %s USB legacy support already disabled\n",
+  //      xhci->name );
+  //  return;
+  //}
+
+  ///* Record presence of USB legacy support capability */
+  //xhci->legacy = legacy;
+}
+
+/**
+ * Claim ownership from BIOS
+ *
+ * @v xhci		xHCI device
+ */
+//static void xhci_legacy_claim ( struct xhci *xhci )
+//{
+//  grub_uint32_t ctlsts;
+//  grub_uint8_t bios;
+//  unsigned int i;
+//
+//  /* Do nothing unless legacy support capability is present */
+//  if ( ! xhci->legacy )
+//    return;
+//
+//  /* Claim ownership */
+//  writeb ( XHCI_USBLEGSUP_OS_OWNED,
+//      xhci->cap + xhci->legacy + XHCI_USBLEGSUP_OS );
+//
+//  /* Wait for BIOS to release ownership */
+//  for ( i = 0 ; i < XHCI_USBLEGSUP_MAX_WAIT_MS ; i++ ) {
+//
+//    /* Check if BIOS has released ownership */
+//    bios = readb ( xhci->cap + xhci->legacy + XHCI_USBLEGSUP_BIOS );
+//    if ( ! ( bios & XHCI_USBLEGSUP_BIOS_OWNED ) ) {
+//      DBGC ( xhci, "XHCI %s claimed ownership from BIOS\n",
+//          xhci->name );
+//      ctlsts = readl ( xhci->cap + xhci->legacy +
+//          XHCI_USBLEGSUP_CTLSTS );
+//      if ( ctlsts ) {
+//        DBGC ( xhci, "XHCI %s warning: BIOS retained "
+//            "SMIs: %08x\n", xhci->name, ctlsts );
+//      }
+//      return;
+//    }
+//
+//    /* Delay */
+//    mdelay ( 1 );
+//  }
+//
+//  /* BIOS did not release ownership.  Claim it forcibly by
+//   * disabling all SMIs.
+//   */
+//  DBGC ( xhci, "XHCI %s could not claim ownership from BIOS: forcibly "
+//      "disabling SMIs\n", xhci->name );
+//  writel ( 0, xhci->cap + xhci->legacy + XHCI_USBLEGSUP_CTLSTS );
+//}
+
 
 /* PCI iteration function, to be passed to grub_pci_iterate.
  *
@@ -2847,6 +3040,11 @@ xhci_pci_iter (grub_pci_device_t dev,
   xhci_dbg("XHCI-%s: SBRN=%02x scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
       xhci->name, xhci->sbrn, xhci->num_scratch_bufs, xhci->scratchpad_arr,
       xhci->pagesize, ac64);
+
+  /* Initialise USB legacy support and claim ownership */
+  //xhci_legacy_init(xhci);
+  //xhci_legacy_claim(xhci);
+  //xhci_extended_capabilities_foreach(xhci);
 
   grub_millisleep(10000);
 
