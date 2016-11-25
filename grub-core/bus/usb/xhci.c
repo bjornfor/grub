@@ -1404,9 +1404,21 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   static int state;
   grub_uint32_t portsc;
 
-  xhci_trace ("xhci_detect_dev port=%d\n", port);
+  //xhci_trace ("xhci_detect_dev port=%d\n", port);
   if (debug_enabled())
   {
+
+
+    for (unsigned int i=0; i<xhci->max_ports; i++)
+    {
+      xhci_dump_oper_portsc(xhci, i);
+      grub_printf ("\n");
+    }
+    grub_printf ("\n");
+    grub_millisleep(1000);
+    return 0;
+
+
     xhci_dump_oper_portsc(xhci, port);
     grub_printf ("\n");
   }
@@ -1418,7 +1430,7 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   }
 
   if (debug_enabled())
-    grub_millisleep (1000);
+    grub_millisleep (500);
 
   switch (state) {
     case 0:
