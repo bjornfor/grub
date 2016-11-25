@@ -261,6 +261,8 @@ enum bits32
   XHCI_TRB_STAT__COMPLETION_CODE = BITS(24, 31),
 };
 
+#define XHCI_PCI_SBRN_REG  0x60
+
 #define XHCI_ADDR_MEM_MASK	(~0xff)
 #define XHCI_POINTER_MASK	(~0x1f)
 #define XHCI_COMMAND_MAX_WAIT_MS 100
@@ -713,12 +715,15 @@ struct xhci
   grub_uint8_t max_ports; /* valid range 1-255 */
 
   /* Other data */
+  char name[16]; /* for identification purposes in debug output */
+  int sbrn; /* Serial Bus Release Number register value */
   grub_uint8_t num_enabled_slots;
   grub_uint64_t *dcbaa;     /* virtual address, dynamically allocated array
                                where each element points to a Slot Context */
   grub_uint32_t dcbaa_len;  /* size in bytes */
   grub_uint8_t *scratchpads;    /* virtual address, dynamically allocated array */
   grub_uint8_t scratchpads_len;
+  int num_scratch_bufs;
   grub_uint64_t *scratchpad_arr;  /* virtual address, dynamically allocated array
                                      with physical address pointers to
                                      pagesized areas in "scratchpads" memory
@@ -808,6 +813,7 @@ xhci_ring_remaining ( struct xhci_trb_ring *ring )
 }
 
 static struct xhci *xhci_list;
+static int cur_xhci_id;
 
 /* xHCI capability registers access functions */
 static inline grub_uint32_t
@@ -2233,10 +2239,14 @@ xhci_setup_scratchpad(struct xhci *xhci)
       XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_LO)
     | (mmio_read_bits(&xhci->cap_regs->hcsparams2,
       XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_HI) << 5);
-  xhci_trace("xHC needs %d scratchpad buffers\n", num_scratch_bufs);
+
+  xhci->num_scratch_bufs = num_scratch_bufs;
 
   if (!num_scratch_bufs)
+  {
+    xhci_trace("xHC needs %d scratchpad buffers\n", num_scratch_bufs);
     return 0;
+  }
 
   /* Allocate Scratchpad Buffers */
   pagesize = xhci_pagesize_to_bytes(
@@ -2270,8 +2280,8 @@ xhci_setup_scratchpad(struct xhci *xhci)
 
   /* Write Scratchpad Buffers Array base address to xHC */
   scratchpad_arr_phys = grub_dma_get_phys((struct grub_pci_dma_chunk*)xhci->scratchpad_arr);
-  xhci_trace ("Scratchpad Buffer Array at 0x%08x (virt 0x%08x), len=%d bytes\n",
-      scratchpad_arr_phys, xhci->scratchpad_arr, xhci->scratchpad_arr_len);
+  xhci_trace ("Scratchpad Buffer Array (nbuf=%d) at 0x%08x (virt 0x%08x), len=%d bytes\n",
+      num_scratch_bufs, scratchpad_arr_phys, xhci->scratchpad_arr, xhci->scratchpad_arr_len);
    /* The location of the Scratcphad Buffer array is defined by entry 0 of the
     * DCBAA. We only support 32-bit.
     */
@@ -2424,14 +2434,18 @@ xhci_setup_event_ring(struct xhci *xhci)
 }
 
 static int
-xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
+xhci_init (struct xhci *xhci, volatile void *mmio_base_addr, grub_pci_device_t dev, int seqno)
 {
+  (void)seqno;
   int rc;
   grub_int32_t hcsparams1;
   //grub_uint32_t hcsparams2;
   //grub_uint32_t hccparams1;
   //grub_uint32_t pagesize;
   grub_uint64_t maxtime;
+
+  grub_snprintf(xhci->name, sizeof(xhci->name), "%d", seqno);
+  xhci->sbrn = pci_config_read8 (dev, XHCI_PCI_SBRN_REG);
 
   /* Locate capability, operational, runtime, and doorbell registers */
   xhci->cap_regs = mmio_base_addr;
@@ -2501,13 +2515,11 @@ xhci_init (struct xhci *xhci, volatile void *mmio_base_addr)
   (void)rc;
   rc = xhci_nop(xhci);
   grub_printf("xhci_nop returned %d\n", rc);
-  grub_millisleep (10000);
 
   if (0 && debug_enabled())
   {
     xhci_dump_cap(xhci);
     xhci_dump_oper(xhci);
-    grub_millisleep (10000);
   }
 
 #if 0
@@ -2741,7 +2753,7 @@ static unsigned long pci_bar_start ( struct grub_pci_device *dev, unsigned int r
  */
 static int
 xhci_pci_iter (grub_pci_device_t dev,
-                    grub_pci_id_t pciid __attribute__ ((unused)),
+                    grub_pci_id_t pciid,
 		    void *data __attribute__ ((unused)))
 {
   int err;
@@ -2756,9 +2768,10 @@ xhci_pci_iter (grub_pci_device_t dev,
   if (class_code != 0x0c0330)
     return 0;
 
-  xhci_trace ("found xHCI controller on bus %d device %d "
-      "function %d: device|vendor ID 0x%08x\n", dev.bus, dev.device,
-      dev.function, pciid);
+  xhci_dbg ("XHCI controller at %d:%02x.%d, vendor:device %04x:%04x\n",
+      dev.bus, dev.device, dev.function,
+      (grub_le_to_cpu32(pciid) & 0xffff),
+      (grub_le_to_cpu32(pciid) >> 16) & 0xffff);
 
   /* Determine xHCI MMIO registers base address */
   base = pci_config_read32 (dev, GRUB_PCI_REG_ADDRESS_REG0);
@@ -2790,9 +2803,6 @@ xhci_pci_iter (grub_pci_device_t dev,
       (base & XHCI_ADDR_MEM_MASK),
       0x100); /* PCI config space is 256 bytes */
 
-  xhci_trace ("xHCI 32-bit MMIO regs (BAR0) at 0x%08x\n",
-      (unsigned long int)mmio_base_addr);
-
   xhci = grub_zalloc (sizeof (*xhci));
   if (!xhci)
     {
@@ -2800,16 +2810,24 @@ xhci_pci_iter (grub_pci_device_t dev,
       return GRUB_USB_ERR_INTERNAL;
     }
 
-  err = xhci_init (xhci, mmio_base_addr);
+  err = xhci_init (xhci, mmio_base_addr, dev, cur_xhci_id);
   if (err)
   {
     grub_free(xhci);
     return err;
   }
+  xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
+      xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
+  xhci_dbg("XHCI-%s: SBRN=%02x scratch_bufs=%d (arr @ 0x%08x)\n",
+      xhci->name, xhci->sbrn, xhci->num_scratch_bufs, xhci->scratchpad_arr);
+
+  grub_millisleep(10000);
 
   /* Build list of xHCI controllers */
   xhci->next = xhci_list;
   xhci_list = xhci;
+
+  cur_xhci_id += 1;
 
   return 0;
 }
@@ -2845,6 +2863,7 @@ GRUB_MOD_INIT (xhci)
   COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_oper_regs, config) == 0x38);
 
   xhci_trace ("[loading]\n");
+  cur_xhci_id = 0;
   grub_stop_disk_firmware ();
   grub_boot_time ("Initing xHCI hardware");
   grub_pci_iterate (xhci_pci_iter, NULL);
