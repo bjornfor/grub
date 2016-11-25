@@ -1016,17 +1016,26 @@ static void
 xhci_dump_oper_portsc(struct xhci *xhci, int port)
 {
   grub_uint32_t portsc;
+  char pls_str[16];
+  char ps_str[16];
 
   portsc = xhci_read_portrs (xhci, port, PORTSC);
+
+  grub_snprintf(pls_str, sizeof (pls_str), " PLS=%d",
+      parse_reg(portsc, XHCI_OP_PORTSC_PLS));
+
+  grub_snprintf(ps_str, sizeof (ps_str), " PS=%d",
+      parse_reg(portsc, XHCI_OP_PORTSC_PS));
+
   grub_printf (" PORTSC(%02d)=0x%08x%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
       port, portsc
       , parse_reg(portsc, XHCI_OP_PORTSC_CCS) ? " CCS" : ""
       , parse_reg(portsc, XHCI_OP_PORTSC_PED) ? " PED" : ""
       , parse_reg(portsc, XHCI_OP_PORTSC_OCA) ? " OCA" : ""
       , parse_reg(portsc, XHCI_OP_PORTSC_PR) ? " PR" : ""
-      , parse_reg(portsc, XHCI_OP_PORTSC_PLS) ? " PLS" : ""
+      , pls_str
       , parse_reg(portsc, XHCI_OP_PORTSC_PP) ? " PP" : ""
-      , parse_reg(portsc, XHCI_OP_PORTSC_PS) ? " PS" : ""
+      , ps_str
       , parse_reg(portsc, XHCI_OP_PORTSC_PIC) ? " PIC" : ""
       , parse_reg(portsc, XHCI_OP_PORTSC_LWS) ? " LWS" : ""
       , parse_reg(portsc, XHCI_OP_PORTSC_CSC) ? " CSC" : ""
@@ -1415,7 +1424,7 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
       grub_printf ("\n");
     }
     grub_printf ("\n");
-    grub_millisleep(1000);
+    grub_millisleep(2000);
     return 0;
 
 
