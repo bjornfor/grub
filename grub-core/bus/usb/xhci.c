@@ -717,6 +717,7 @@ struct xhci
   /* Other data */
   char name[16]; /* for identification purposes in debug output */
   int sbrn; /* Serial Bus Release Number register value */
+  int pagesize; /* in bytes */
   grub_uint8_t num_enabled_slots;
   grub_uint64_t *dcbaa;     /* virtual address, dynamically allocated array
                                where each element points to a Slot Context */
@@ -2251,6 +2252,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
   /* Allocate Scratchpad Buffers */
   pagesize = xhci_pagesize_to_bytes(
       mmio_read_bits(&xhci->oper_regs->pagesize, XHCI_OP_PAGESIZE));
+  xhci->pagesize = pagesize;
   xhci->scratchpads_len = num_scratch_bufs * pagesize;
   xhci->scratchpads = (grub_uint8_t*)grub_memalign_dma32 (min_align, xhci->scratchpads_len);
   if (!xhci->scratchpads)
@@ -2818,8 +2820,9 @@ xhci_pci_iter (grub_pci_device_t dev,
   }
   xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
       xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
-  xhci_dbg("XHCI-%s: SBRN=%02x scratch_bufs=%d (arr @ 0x%08x)\n",
-      xhci->name, xhci->sbrn, xhci->num_scratch_bufs, xhci->scratchpad_arr);
+  xhci_dbg("XHCI-%s: SBRN=%02x scratch_bufs=%d (arr @ 0x%08x) pagesize=%d\n",
+      xhci->name, xhci->sbrn, xhci->num_scratch_bufs, xhci->scratchpad_arr,
+      xhci->pagesize);
 
   grub_millisleep(10000);
 
