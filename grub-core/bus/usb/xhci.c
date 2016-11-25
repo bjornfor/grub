@@ -1620,7 +1620,7 @@ xhci_check_transfer (grub_usb_controller_t dev,
   (void)xhci;
   (void)actual;
 
-  xhci_trace ("xhci_check_transfer enter (TODO: implement)\n");
+  //xhci_trace ("xhci_check_transfer enter (TODO: implement)\n");
   return GRUB_USB_ERR_NONE;
 #if 0
   grub_uint32_t token, token_ftd;
@@ -1690,7 +1690,7 @@ xhci_setup_transfer (grub_usb_controller_t dev,
 {
   (void)dev;
   (void)transfer;
-  xhci_trace ("xhci_setup_transfer enter (TODO: implement)\n");
+  //xhci_trace ("xhci_setup_transfer enter (TODO: implement)\n");
   /* pretend we managed to start sending data */
   return GRUB_USB_ERR_NONE;
 
@@ -2359,7 +2359,7 @@ xhci_setup_ring(struct xhci *xhci,
   int count = 1 << shift;
   int len = (count + 1 /* Link TRB */) * sizeof (ring->trbs[0]);
   (void)xhci;
-  xhci_trace("%s: TODO: implement\n", __func__);
+  //xhci_trace("%s: TODO: implement\n", __func__);
   ring->mask = count - 1;
   ring->shift = shift;
   ring->slot = slot;
@@ -2862,7 +2862,7 @@ GRUB_MOD_INIT (xhci)
   COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_cap_regs, hccparams2) == 0x1c);
   COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_oper_regs, config) == 0x38);
 
-  xhci_trace ("[loading]\n");
+  //xhci_trace ("[loading]\n");
   cur_xhci_id = 0;
   grub_stop_disk_firmware ();
   grub_boot_time ("Initing xHCI hardware");
@@ -2878,7 +2878,7 @@ GRUB_MOD_INIT (xhci)
 
 GRUB_MOD_FINI (xhci)
 {
-  xhci_trace ("[unloading]\n");
+  //xhci_trace ("[unloading]\n");
   xhci_fini_hw (0);
   grub_usb_controller_dev_unregister (&usb_controller_dev);
 }
