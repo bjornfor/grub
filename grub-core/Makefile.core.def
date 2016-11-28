@@ -577,7 +577,7 @@ module = {
 
 module = {
   name = xhci;
-  common = bus/usb/xhci_glue.c;
+  common = bus/usb/xhci_driver.c;
   common = bus/usb/xhci.c;
   common = bus/usb/xhci_io.c;
   common = bus/usb/xhci_debug.c;
