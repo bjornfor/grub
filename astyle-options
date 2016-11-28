@@ -1,0 +1,6 @@
+# Use: astyle --options=path/to/this/file
+
+--style=gnu
+--pad-paren-out
+--pad-oper
+--align-pointer=name
