@@ -31,8 +31,9 @@
 //#define XHCI_SPEW_DEBUG
 
 #include <inttypes.h>
-#include <arch/virtual.h>
+//#include <arch/virtual.h>
 #include "xhci_private.h"
+#include "xhci_io.h"
 #include "xhci.h"
 
 static void xhci_start (hci_t *controller);

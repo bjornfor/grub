@@ -32,9 +32,47 @@
 #define __XHCI_PRIVATE_H
 
 //#define USB_DEBUG
-#include <usb/usb.h>
-#include <arch/barrier.h>
-#include <kconfig.h>
+//#include <usb/usb.h>
+//#include <arch/barrier.h>
+//#include <kconfig.h>
+
+/* Glue needed to build as part of GRUB */
+#include <grub/types.h>
+
+typedef grub_uint8_t u8;
+typedef grub_uint16_t u16;
+typedef grub_uint32_t u32;
+typedef grub_uint64_t u64;
+typedef grub_size_t size_t;
+
+/* BEGIN from coreboot/.../usb.h */
+struct usbdev_hc;
+typedef struct usbdev_hc hci_t;
+
+struct usbdev;
+typedef struct usbdev usbdev_t;
+
+typedef enum { SETUP, IN, OUT } direction_t;
+typedef enum { CONTROL = 0, ISOCHRONOUS = 1, BULK = 2, INTERRUPT = 3
+} endpoint_type;
+
+typedef struct {
+	usbdev_t *dev;
+	int endpoint;
+	direction_t direction;
+	int toggle;
+	int maxpacketsize;
+	endpoint_type type;
+	int interval; /* expressed as binary logarithm of the number
+			 of microframes (i.e. t = 125us * 2^interval) */
+} endpoint_t;
+
+typedef enum {
+	FULL_SPEED = 0, LOW_SPEED = 1, HIGH_SPEED = 2, SUPER_SPEED = 3,
+} usb_speed;
+
+/* END from coreboot/.../usb.h */
+
 
 //#define XHCI_DUMPS
 #define xhci_debug(fmt, args...) usb_debug("%s: " fmt, __func__, ## args)

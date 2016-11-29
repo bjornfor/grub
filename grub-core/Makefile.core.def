@@ -578,6 +578,20 @@ module = {
 };
 
 module = {
+  name = xhci;
+  common = bus/usb/xhci_driver.c;
+  common = bus/usb/xhci.c;
+  common = bus/usb/xhci_io.c;
+  common = bus/usb/xhci_commands.c;
+  common = bus/usb/xhci_devconf.c;
+  common = bus/usb/xhci_events.c;
+  common = bus/usb/xhci_rh.c;
+  enable = pci;
+
+  cppflags = '-I$(srcdir)/lib/posix_wrap';
+};
+
+module = {
   name = pci;
   common = bus/pci.c;
   i386_ieee1275 = bus/i386/ieee1275/pci.c;

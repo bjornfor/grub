@@ -316,4 +316,11 @@ static inline void grub_set_unaligned64 (void *ptr, grub_uint64_t val)
 
 #define GRUB_CHAR_BIT 8
 
+/* stdint.h types */
+//typedef grub_uint8_t u8;
+//typedef grub_uint16_t u16;
+//typedef grub_uint32_t u32;
+//typedef grub_size_t size_t;
+//typedef grub_ssize_t ssize_t;
+
 #endif /* ! GRUB_TYPES_HEADER */
