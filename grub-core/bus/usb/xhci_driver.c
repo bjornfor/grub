@@ -10,8 +10,11 @@
 #include <grub/loader.h> /* grub_loader_register_preboot_hook */
 
 #include "xhci.h"
-#include "xhci_io.h"
-#include "xhci_debug.h" // FIXME: strictly unneeded, remove before submitting upstream
+//#include "xhci_io.h"
+
+GRUB_MOD_LICENSE ("GPLv3+");
+
+#define XHCI_ADDR_MEM_MASK	(~0xff)
 
 static unsigned int cur_xhci_id;
 static struct xhci *xhci_list[16];
@@ -71,73 +74,63 @@ static struct xhci *xhci_list_next(int *iter)
 static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
 {
   (void)data;
-  int err;
-  int ac64;
   struct xhci *xhci;
   grub_uint32_t class_code;
   grub_uint32_t base;
   volatile grub_uint32_t *mmio_base_addr;
   grub_uint32_t base_h;
+  grub_pci_address_t addr;
 
   /* Exit if not USB3.0 xHCI controller */
-  class_code = pci_config_read32 (dev, GRUB_PCI_REG_CLASS) >> 8;
+  addr = grub_pci_make_address (dev, GRUB_PCI_REG_CLASS);
+  class_code = grub_pci_read (addr) >> 8;
   if (class_code != 0x0c0330)
     return 0;
 
-  xhci_dbg ("XHCI controller at %d:%02x.%d, vendor:device %04x:%04x\n",
+  grub_printf ("xhci: controller at %d:%02x.%d, vendor:device %04x:%04x\n",
       dev.bus, dev.device, dev.function,
       (grub_le_to_cpu32(pciid) & 0xffff),
       (grub_le_to_cpu32(pciid) >> 16) & 0xffff);
 
   /* Determine xHCI MMIO registers base address */
-  base = pci_config_read32 (dev, GRUB_PCI_REG_ADDRESS_REG0);
-  base_h = pci_config_read32 (dev, GRUB_PCI_REG_ADDRESS_REG1);
+  addr = grub_pci_make_address (dev, GRUB_PCI_REG_ADDRESS_REG0);
+  base = grub_pci_read (addr);
+  addr = grub_pci_make_address (dev, GRUB_PCI_REG_ADDRESS_REG1);
+  base_h = grub_pci_read (addr);
   /* Stop if registers are mapped above 4G - GRUB does not currently
    * work with registers mapped above 4G */
   if (((base & GRUB_PCI_ADDR_MEM_TYPE_MASK) != GRUB_PCI_ADDR_MEM_TYPE_32)
       && (base_h != 0))
     {
-      xhci_err ("registers above 4G are not supported\n");
+      grub_printf ("xhci: registers above 4G are not supported\n");
       return 0;
     }
   base &= GRUB_PCI_ADDR_MEM_MASK;
   if (!base)
     {
-      xhci_err ("xHCI BARs not programmed (broken PC firmware)\n");
+      grub_printf ("xhci: BARs not programmed (broken PC firmware)\n");
       return 0;
     }
 
   /* Set bus master - needed for coreboot, VMware, broken BIOSes etc. or else
    * MMIO access doesn't work (no effect).
    */
-  pci_config_write32(dev, GRUB_PCI_REG_COMMAND,
-      pci_config_read32(dev, GRUB_PCI_REG_COMMAND)
-      | GRUB_PCI_COMMAND_MEM_ENABLED
-      | GRUB_PCI_COMMAND_BUS_MASTER);
+  addr = grub_pci_make_address (dev, GRUB_PCI_REG_COMMAND);
+  grub_pci_write_word(addr,
+      GRUB_PCI_COMMAND_MEM_ENABLED
+      | GRUB_PCI_COMMAND_BUS_MASTER
+      | grub_pci_read_word(addr));
 
   mmio_base_addr = grub_pci_device_map_range (dev,
       (base & XHCI_ADDR_MEM_MASK),
       0x100); /* PCI config space is 256 bytes */
 
-  xhci = xhci_new();
+  xhci = xhci_create(mmio_base_addr, cur_xhci_id);
   if (!xhci)
     {
-      xhci_err ("out of memory\n");
+      grub_printf ("out of memory\n");
       return GRUB_USB_ERR_INTERNAL;
     }
-
-  err = xhci_init (xhci, mmio_base_addr, cur_xhci_id);
-  if (err)
-  {
-    grub_free(xhci);
-    return err;
-  }
-  xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
-      xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
-  ac64 = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_AC64);
-  xhci_dbg("XHCI-%s: SBRN=%02x scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
-      xhci->name, xhci->sbrn, xhci->num_scratch_bufs, xhci->scratchpad_arr,
-      xhci->pagesize, ac64);
 
   /* Initialise USB legacy support and claim ownership */
   //xhci_legacy_init(xhci);
@@ -159,7 +152,7 @@ xhci_fini_hw (int noreturn __attribute__ ((unused)))
   struct xhci *xhci;
   int iter;
 
-  xhci_trace ("grub_xhci_fini_hw enter\n");
+  grub_printf ("grub_xhci_fini_hw enter\n");
 
   /* We should disable all xHCI HW to prevent any DMA access etc. */
   for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
@@ -186,7 +179,7 @@ xhci_restore_hw (void)
   //grub_uint32_t n_ports;
   //int i;
 
-  xhci_trace("grub_xhci_restore_hw enter\n");
+  grub_printf("grub_xhci_restore_hw enter\n");
   /* We should re-enable all xHCI HW similarly as on inithw */
 //  for (xhci = xhci_list; xhci; xhci = xhci->next)
 //    {
@@ -218,7 +211,7 @@ xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
   (void)dev;
   int iter;
 
-  xhci_trace ("xhci_iterate enter\n");
+  grub_printf ("xhci_iterate enter\n");
   for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
     {
       dev.data = xhci;
@@ -337,14 +330,7 @@ static struct grub_usb_controller_dev usb_controller_dev = {
 
 GRUB_MOD_INIT (xhci)
 {
-  /* Sanity check register addresses.
-   * No limits.h or CHAR_BIT available, use GRUB_CHAR_BIT.
-   */
-  COMPILE_TIME_ASSERT(GRUB_CHAR_BIT == 8);
-  COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_cap_regs, hccparams2) == 0x1c);
-  COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_oper_regs, config) == 0x38);
-
-  //xhci_trace ("[loading]\n");
+  //grub_printf ("[loading]\n");
 
   xhci_list_num_elems = 0;
   cur_xhci_id = 0;
@@ -355,15 +341,15 @@ GRUB_MOD_INIT (xhci)
   grub_boot_time ("Registering xHCI driver");
   grub_usb_controller_dev_register (&usb_controller_dev);
   grub_boot_time ("xHCI driver registered");
-  xhci_trace ("xHCI driver is registered, register preboot hook\n");
+  grub_printf ("xHCI driver is registered, register preboot hook\n");
   grub_loader_register_preboot_hook (xhci_fini_hw, xhci_restore_hw,
 				     GRUB_LOADER_PREBOOT_HOOK_PRIO_DISK);
-  xhci_trace ("GRUB_MOD_INIT completed\n");
+  grub_printf ("GRUB_MOD_INIT completed\n");
 }
 
 GRUB_MOD_FINI (xhci)
 {
-  //xhci_trace ("[unloading]\n");
+  //grub_printf ("[unloading]\n");
   xhci_fini_hw (0);
   grub_usb_controller_dev_unregister (&usb_controller_dev);
 }

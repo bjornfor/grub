@@ -1,12 +1,9 @@
 #ifndef XHCI_PRIVATE_H
 #define XHCI_PRIVATE_H
 
-#include <grub/types.h>
-#include <grub/usb.h>
-
 /* Where is the standard "offsetof" macro */
 #define OFFSETOF(T, m) \
-  ((grub_size_t) (((grub_uint8_t *) &(((T*)NULL)->m)) - ((grub_uint8_t *) ((T*) NULL))))
+  ((size_t) (((uint8_t *) &(((T*)NULL)->m)) - ((uint8_t *) ((T*) NULL))))
 
 /*
  * Some reasons for doing this kind of register access abstraction. It has a
@@ -218,7 +215,6 @@ enum bits32
 
 #define XHCI_PCI_SBRN_REG  0x60
 
-#define XHCI_ADDR_MEM_MASK	(~0xff)
 #define XHCI_POINTER_MASK	(~0x1f)
 #define XHCI_COMMAND_MAX_WAIT_MS 100
 
@@ -240,80 +236,80 @@ enum
 
 /** Capability registers */
 struct xhci_cap_regs {
-  const grub_uint32_t caplength_and_hciversion;
-  const grub_uint32_t hcsparams1;
-  const grub_uint32_t hcsparams2;
-  const grub_uint32_t hcsparams3;
-  const grub_uint32_t hccparams1;
-  const grub_uint32_t dboff;
-  const grub_uint32_t rtsoff;
-  const grub_uint32_t hccparams2;
+  const uint32_t caplength_and_hciversion;
+  const uint32_t hcsparams1;
+  const uint32_t hcsparams2;
+  const uint32_t hcsparams3;
+  const uint32_t hccparams1;
+  const uint32_t dboff;
+  const uint32_t rtsoff;
+  const uint32_t hccparams2;
   /* Reserved up to (caplength - 0x20) */
 };
 
 /** Operational registers */
 struct xhci_oper_regs {
   /** USB Command */
-  grub_uint32_t usbcmd;
+  uint32_t usbcmd;
   /** USB Status */
-  grub_uint32_t usbsts;
+  uint32_t usbsts;
   /* Page Size */
-  grub_uint32_t pagesize;
+  uint32_t pagesize;
   /** Reserved 0x0c-0x13 */
-  grub_uint32_t _rsvdz1[2];
+  uint32_t _rsvdz1[2];
   /** Device Notification Control */
-  grub_uint32_t dnctrl;
+  uint32_t dnctrl;
   /** Command Ring Control */
   union {
     struct {
-      grub_uint32_t crcr_lo;
-      grub_uint32_t crcr_hi;
+      uint32_t crcr_lo;
+      uint32_t crcr_hi;
     };
-    grub_uint64_t crcr;
+    uint64_t crcr;
   };
   /** Reserved 0x20-0x2F */
-  grub_uint32_t _rsvdz2[4];
+  uint32_t _rsvdz2[4];
   /** Device Context Base Address Array Pointer */
   union {
     struct {
-      grub_uint32_t dcbaap_lo;
-      grub_uint32_t dcbaap_hi;
+      uint32_t dcbaap_lo;
+      uint32_t dcbaap_hi;
     };
-    grub_uint64_t dcbaap;
+    uint64_t dcbaap;
   };
   /** Configure */
-  grub_uint32_t config;
+  uint32_t config;
   /** Reserved 0x03c-0x3ff */
-  grub_uint32_t _rsvdz4[241];
+  uint32_t _rsvdz4[241];
   /** Port Register Set 1-MaxPorts (0x400-0x13ff) */
-  grub_uint32_t _reserved[1024];
+  uint32_t _reserved[1024];
 };
 
 struct xhci_interrupter_register_set
 {
-  grub_uint32_t iman;
-  grub_uint32_t imod;
-  grub_uint32_t erstsz;
-  grub_uint32_t _rsvdp;
-  grub_uint64_t erstba;
-  grub_uint64_t erdp;
+  uint32_t iman;
+  uint32_t imod;
+  uint32_t erstsz;
+  uint32_t _rsvdp;
+  uint64_t erstba;
+  uint64_t erdp;
 };
 
 #define NUM_INTERRUPTER_REGISTER_SETS 1024
 
 /** Runtime registers */
 struct xhci_run_regs {
-  const grub_uint32_t microframe_index;
-  grub_uint8_t _rsvdz[0x1c];
+  const uint32_t microframe_index;
+  uint8_t _rsvdz[0x1c];
   struct xhci_interrupter_register_set ir_set[NUM_INTERRUPTER_REGISTER_SETS];
 };
 
 /** Port Register Set */
 //struct xhci_port_reg_set {
-//  grub_uint32_t portsc;
-//  grub_uint32_t portpmsc;
-//  grub_uint32_t portli;
-//  grub_uint32_t porthlpmc;
+//  uint32_t portsc;
+//  uint32_t portpmsc;
+//  uint32_t portli;
+//  uint32_t porthlpmc;
 //};
 
 /*
@@ -324,7 +320,7 @@ struct xhci_run_regs {
 
 /** Doorbell array registers */
 struct xhci_doorbell_regs {
-  grub_uint32_t doorbell[MAX_DOORBELL_ENTRIES];
+  uint32_t doorbell[MAX_DOORBELL_ENTRIES];
 };
 
 /** Construct slot context device info */
@@ -332,10 +328,10 @@ struct xhci_doorbell_regs {
   (((entries) << 27) | ((hub) << 26) | ((speed) << 20) | (route))
 
 struct xhci_slot_context {
-  grub_uint32_t info;
-  grub_uint16_t max_exit_latency;
-  grub_uint8_t root_hub_port_number;
-  grub_uint8_t number_of_ports;
+  uint32_t info;
+  uint16_t max_exit_latency;
+  uint8_t root_hub_port_number;
+  uint8_t number_of_ports;
   /* TODO */
 };
 
@@ -427,84 +423,84 @@ enum xhci_completion_code
 struct xhci_trb_common
 {
   /** Reserved */
-  grub_uint64_t _reserved1;
+  uint64_t _reserved1;
   /** Reserved */
-  grub_uint32_t _reserved2;
+  uint32_t _reserved2;
   /** Flags */
-  grub_uint8_t flags;
+  uint8_t flags;
   /** Type */
-  grub_uint8_t type;
+  uint8_t type;
   /** Reserved */
-  grub_uint16_t _reserved3;
+  uint16_t _reserved3;
 };
 
 /* The generalized TRB template */
 struct xhci_trb_template
 {
-  grub_uint64_t parameter;
-  grub_uint32_t status;
-  grub_uint32_t control;
+  uint64_t parameter;
+  uint32_t status;
+  uint32_t control;
 };
 
 /** A port status change transfer request block */
 struct xhci_trb_port_status
 {
   /** Reserved */
-  grub_uint8_t reserved_a[3];
+  uint8_t reserved_a[3];
   /** Port ID */
-  grub_uint8_t port;
+  uint8_t port;
   /** Reserved */
-  grub_uint8_t reserved_b[7];
+  uint8_t reserved_b[7];
   /** Completion code */
-  grub_uint8_t code;
+  uint8_t code;
   /** Flags */
-  grub_uint8_t flags;
+  uint8_t flags;
   /** Type */
-  grub_uint8_t type;
+  uint8_t type;
   /** Reserved */
-  grub_uint16_t reserved_c;
+  uint16_t reserved_c;
 };
 
 /** A port status change transfer request block */
 struct xhci_trb_host_controller
 {
   /** Reserved */
-  grub_uint64_t _reserved1;
+  uint64_t _reserved1;
   /** Reserved */
-  grub_uint8_t _reserved2[3];
+  uint8_t _reserved2[3];
   /** Completion code */
-  grub_uint8_t code;
+  uint8_t code;
   /** Flags */
-  grub_uint8_t flags;
+  uint8_t flags;
   /** Type */
-  grub_uint8_t type;
+  uint8_t type;
   /** Reserved */
-  grub_uint16_t _reserved3;
+  uint16_t _reserved3;
 };
 
 /** A command completion event transfer request block */
 struct xhci_trb_complete
 {
   /** Command TRB pointer */
-  grub_uint64_t command;
+  uint64_t command;
   /** Parameter */
-  grub_uint8_t parameter[3];
+  uint8_t parameter[3];
   /** Completion code */
-  grub_uint8_t code;
+  uint8_t code;
   /** Flags */
-  grub_uint8_t flags;
+  uint8_t flags;
   /** Type */
-  grub_uint8_t type;
+  uint8_t type;
   /** Virtual function ID */
-  grub_uint8_t vf;
+  uint8_t vf;
   /** Slot ID */
-  grub_uint8_t slot;
+  uint8_t slot;
 };
 
 //struct xhci_trb_nop
 //{
-//  grub_uint32_t _resvdz[3];
-//  grub_uint32_t control;
+//  uint32_t _resvdz[3];
+//  uint32_t control;
 //};
 
 /* Transfer Request Block */
@@ -515,7 +511,7 @@ union xhci_trb
   struct xhci_trb_complete complete;
   struct xhci_trb_host_controller host;
   //struct xhci_trb_nop nop;
-  grub_uint32_t raw[4];
+  uint32_t raw[4];
 };
 
 /* Transfer Request Block ring */
@@ -529,8 +525,8 @@ struct xhci_trb_ring
   unsigned int slot;
 
   /* Pointer to the Doorbell corresponding to this ring */
-  volatile grub_uint32_t *db_reg;
-  volatile grub_uint32_t db_val; // the value written to *db_reg to notify the xHC
+  volatile uint32_t *db_reg;
+  volatile uint32_t db_val; // the value written to *db_reg to notify the xHC
 
   /* The actual TRBs in the ring, dynamically allocated from DMA pool, for
    * contiguous physical memory
@@ -542,11 +538,11 @@ struct xhci_trb_ring
 struct xhci_event_ring_segment
 {
   /** Base address */
-  grub_uint64_t base;
+  uint64_t base;
   /** Number of TRBs */
-  grub_uint32_t count;
+  uint32_t count;
   /** Reserved */
-  grub_uint32_t _reserved;
+  uint32_t _reserved;
 };
 
 /** An event ring */
@@ -569,25 +565,25 @@ struct xhci
   volatile struct xhci_doorbell_regs *db_regs;
 
   /* Cached from xHCI */
-  grub_uint8_t max_device_slots; /* valid range 1-255 */
-  grub_uint8_t max_ports; /* valid range 1-255 */
+  uint8_t max_device_slots; /* valid range 1-255 */
+  uint8_t max_ports; /* valid range 1-255 */
 
   /* Other data */
   char name[16]; /* for identification purposes in debug output */
   int sbrn; /* Serial Bus Release Number register value */
   int pagesize; /* in bytes */
-  grub_uint8_t num_enabled_slots;
-  grub_uint64_t *dcbaa;     /* virtual address, dynamically allocated array
+  uint8_t num_enabled_slots;
+  uint64_t *dcbaa;     /* virtual address, dynamically allocated array
                                where each element points to a Slot Context */
-  grub_uint32_t dcbaa_len;  /* size in bytes */
-  grub_uint8_t *scratchpads;    /* virtual address, dynamically allocated array */
-  grub_uint8_t scratchpads_len;
+  uint32_t dcbaa_len;  /* size in bytes */
+  uint8_t *scratchpads;    /* virtual address, dynamically allocated array */
+  uint8_t scratchpads_len;
   int num_scratch_bufs;
-  grub_uint64_t *scratchpad_arr;  /* virtual address, dynamically allocated array
+  uint64_t *scratchpad_arr;  /* virtual address, dynamically allocated array
                                      with physical address pointers to
                                      pagesized areas in "scratchpads" memory
                                      for xHC private use */
-  grub_uint32_t scratchpad_arr_len; /* size in bytes */
+  uint32_t scratchpad_arr_len; /* size in bytes */
 
   volatile union xhci_trb *pending;
 
@@ -599,24 +595,6 @@ struct xhci
 
   /* linked list */
   struct xhci *next;
-
-
-  /* DEPRECATED STUFF BELOW */
-
-  volatile void *regs;     /* Start of registers (same addr as capability) */
-  /* Pointers to specific register areas */
-  volatile grub_uint8_t *cap;	   /* Capability registers */
-  volatile grub_uint8_t *oper;	   /* Operational registers */
-  volatile grub_uint8_t *runtime;  /* Runtime registers */
-  //volatile grub_uint8_t *doorbell; /* Doorbell Array */
-
-  unsigned int slots;  /* number of device slots */
-  unsigned int ports;  /* number of ports */
-
-  /* grub stuff */
-  volatile grub_uint32_t *iobase_cap;	   /* Capability registers */
-  volatile grub_uint32_t *iobase_oper;	   /* Operational registers */
-  //unsigned int reset;
 };
 
 /** Transfer request block cycle bit flag */
@@ -633,6 +611,7 @@ struct xhci
 
 enum xhci_portrs_type
 {
+  /* byte offsets relative to the PORTRS(?) base register */
   PORTSC = 0,
   PORTPMSC = 4,
   PORTLI = 8,

@@ -1,11 +1,9 @@
 #ifndef XHCI_H
 #define XHCI_H
 
-#include <grub/types.h>
-#include <grub/usb.h>
-#include <grub/pci.h>
+#include <stdint.h>
 
-struct xhci; /* hidden */
+struct xhci; /* forward declaration (details are hidden) */
 
 enum xhci_speed {
   XHCI_SPEED_NONE = 0,
@@ -15,14 +13,24 @@ enum xhci_speed {
   XHCI_SPEED_SUPER,
 };
 
-struct xhci *xhci_new(void);
+/* Assuming the caller has made the PCI device a bus master (or else MMIO
+ * access doesn't work) and that BARs has been assigned/programmed. PC firmware
+ * should do the latter.
+ *
+ * mmio_base_addr is the address stored in BAR0.
+ * seqno is an arbitrary integer used for identification purposes in logs.
+ */
+struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno);
 
-int xhci_init (struct xhci *xhci, volatile void *mmio_base_addr, int seqno);
+int xhci_halt (struct xhci *xhci);
 
+/* TODO: handle missing "transfer" parameter */
 int xhci_setup_transfer (struct xhci *xhci);
 
+/* TODO: handle missing "transfer" parameter */
 int xhci_check_transfer (struct xhci *xhci);
 
+/* TODO: handle missing "transfer" parameter */
 int xhci_cancel_transfer (struct xhci *xhci);
 
 int xhci_hubports (struct xhci *xhci);
