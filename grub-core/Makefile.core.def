@@ -582,6 +582,8 @@ module = {
   common = bus/usb/xhci_io.c;
   common = bus/usb/xhci_debug.c;
   enable = pci;
+
+  cppflags = '-I$(srcdir)/lib/posix_wrap';
 };
 
 module = {
