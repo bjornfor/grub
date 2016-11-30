@@ -80,10 +80,6 @@ xhci_speed_name (uint32_t psi)
 }
 #endif
 
-static unsigned int cur_xhci_id;
-static struct xhci *xhci_list[16];
-static int xhci_list_num_elems;
-
 /* Read Port Register Set n of given type */
 grub_uint32_t
 xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci_portrs_type type)
@@ -218,14 +214,9 @@ sync_all_caches (struct xhci *xhci)
 
 #endif
 
-grub_usb_err_t
-xhci_cancel_transfer (grub_usb_controller_t dev,
-			   grub_usb_transfer_t transfer)
+int
+xhci_cancel_transfer (struct xhci *xhci)
 {
-  struct xhci *xhci = dev->data;
-  struct grub_xhci_transfer_controller_data *cdata =
-    transfer->controller_data;
-  (void)cdata;
   (void)xhci;
   xhci_trace ("xhci_cancel_transfer: begin\n");
   return GRUB_USB_ERR_NONE;
@@ -338,10 +329,9 @@ xhci_cancel_transfer (grub_usb_controller_t dev,
   return GRUB_USB_ERR_NONE;
 }
 
-grub_usb_speed_t
-xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
+enum xhci_speed
+xhci_detect_dev (struct xhci *xhci, int port, int *changed)
 {
-  struct xhci *xhci = (struct xhci *) dev->data;
   grub_uint32_t status, line_state;
 
   (void)port;
@@ -469,11 +459,11 @@ xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
   return GRUB_USB_SPEED_NONE;
 }
 
-grub_usb_err_t
-xhci_portstatus (grub_usb_controller_t dev,
-		      unsigned int port, unsigned int enable)
+int
+xhci_portstatus (struct xhci *xhci,
+		 unsigned int port, unsigned int enable)
 {
-  (void)dev;
+  (void)xhci;
   (void)port;
   (void)enable;
   xhci_trace ("xhci_portstatus enter (port=%d, enable=%d)\n",
@@ -481,7 +471,6 @@ xhci_portstatus (grub_usb_controller_t dev,
   return GRUB_USB_ERR_NONE;
 
 #if 0
-  struct xhci *xhci = (struct xhci *) dev->data;
   grub_uint64_t endtime;
 
   xhci_trace ("portstatus: xHCI USBSTS: %08x\n",
@@ -557,9 +546,8 @@ xhci_portstatus (grub_usb_controller_t dev,
 }
 
 int
-xhci_hubports (grub_usb_controller_t dev)
+xhci_hubports (struct xhci *xhci)
 {
-  struct xhci *xhci = (struct xhci *) dev->data;
   unsigned int nports = 0;
 
   nports = xhci->max_ports;
@@ -571,19 +559,13 @@ xhci_hubports (grub_usb_controller_t dev)
   return nports;
 }
 
-grub_usb_err_t
-xhci_check_transfer (grub_usb_controller_t dev,
-			  grub_usb_transfer_t transfer, grub_size_t * actual)
+int
+xhci_check_transfer (struct xhci *xhci)
 {
-  struct xhci *xhci = dev->data;
-  struct grub_xhci_transfer_controller_data *cdata =
-    transfer->controller_data;
-  (void)cdata;
   (void)xhci;
-  (void)actual;
 
   //xhci_trace ("xhci_check_transfer enter (TODO: implement)\n");
-  return GRUB_USB_ERR_NONE;
+  return 0;
 #if 0
   grub_uint32_t token, token_ftd;
 
@@ -646,15 +628,13 @@ xhci_check_transfer (grub_usb_controller_t dev,
 }
 
 
-grub_usb_err_t
-xhci_setup_transfer (grub_usb_controller_t dev,
-			  grub_usb_transfer_t transfer)
+int
+xhci_setup_transfer (struct xhci *xhci)
 {
-  (void)dev;
-  (void)transfer;
+  (void)xhci;
   //xhci_trace ("xhci_setup_transfer enter (TODO: implement)\n");
   /* pretend we managed to start sending data */
-  return GRUB_USB_ERR_NONE;
+  return 0;
 
 #if 0
   struct xhci *xhci = (struct xhci *) dev->data;
@@ -1423,7 +1403,7 @@ struct xhci *xhci_new(void)
   return grub_zalloc (sizeof (struct xhci));
 }
 
-int xhci_init (struct xhci *xhci, volatile void *mmio_base_addr, grub_pci_device_t dev, int seqno)
+int xhci_init (struct xhci *xhci, volatile void *mmio_base_addr, int seqno)
 {
   (void)seqno;
   int rc;
@@ -1434,7 +1414,7 @@ int xhci_init (struct xhci *xhci, volatile void *mmio_base_addr, grub_pci_device
   grub_uint64_t maxtime;
 
   grub_snprintf(xhci->name, sizeof(xhci->name), "%d", seqno);
-  xhci->sbrn = pci_config_read8 (dev, XHCI_PCI_SBRN_REG);
+  xhci->sbrn = 0; //pci_config_read8 (dev, XHCI_PCI_SBRN_REG);
 
   /* Locate capability, operational, runtime, and doorbell registers */
   xhci->cap_regs = mmio_base_addr;
@@ -1664,135 +1644,6 @@ int xhci_init (struct xhci *xhci, volatile void *mmio_base_addr, grub_pci_device
   grub_free (xhci);
   return 0;
 }
-
-int xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
-{
-  (void)data;
-  int err;
-  int ac64;
-  struct xhci *xhci;
-  grub_uint32_t class_code;
-  grub_uint32_t base;
-  volatile grub_uint32_t *mmio_base_addr;
-  grub_uint32_t base_h;
-
-  /* Exit if not USB3.0 xHCI controller */
-  class_code = pci_config_read32 (dev, GRUB_PCI_REG_CLASS) >> 8;
-  if (class_code != 0x0c0330)
-    return 0;
-
-  xhci_dbg ("XHCI controller at %d:%02x.%d, vendor:device %04x:%04x\n",
-      dev.bus, dev.device, dev.function,
-      (grub_le_to_cpu32(pciid) & 0xffff),
-      (grub_le_to_cpu32(pciid) >> 16) & 0xffff);
-
-  /* Determine xHCI MMIO registers base address */
-  base = pci_config_read32 (dev, GRUB_PCI_REG_ADDRESS_REG0);
-  base_h = pci_config_read32 (dev, GRUB_PCI_REG_ADDRESS_REG1);
-  /* Stop if registers are mapped above 4G - GRUB does not currently
-   * work with registers mapped above 4G */
-  if (((base & GRUB_PCI_ADDR_MEM_TYPE_MASK) != GRUB_PCI_ADDR_MEM_TYPE_32)
-      && (base_h != 0))
-    {
-      xhci_err ("registers above 4G are not supported\n");
-      return 0;
-    }
-  base &= GRUB_PCI_ADDR_MEM_MASK;
-  if (!base)
-    {
-      xhci_err ("xHCI BARs not programmed (broken PC firmware)\n");
-      return 0;
-    }
-
-  /* Set bus master - needed for coreboot, VMware, broken BIOSes etc. or else
-   * MMIO access doesn't work (no effect).
-   */
-  pci_config_write32(dev, GRUB_PCI_REG_COMMAND,
-      pci_config_read32(dev, GRUB_PCI_REG_COMMAND)
-      | GRUB_PCI_COMMAND_MEM_ENABLED
-      | GRUB_PCI_COMMAND_BUS_MASTER);
-
-  mmio_base_addr = grub_pci_device_map_range (dev,
-      (base & XHCI_ADDR_MEM_MASK),
-      0x100); /* PCI config space is 256 bytes */
-
-  xhci = xhci_new();
-  if (!xhci)
-    {
-      xhci_err ("out of memory\n");
-      return GRUB_USB_ERR_INTERNAL;
-    }
-
-  err = xhci_init (xhci, mmio_base_addr, dev, cur_xhci_id);
-  if (err)
-  {
-    grub_free(xhci);
-    return err;
-  }
-  xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
-      xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
-  ac64 = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_AC64);
-  xhci_dbg("XHCI-%s: SBRN=%02x scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
-      xhci->name, xhci->sbrn, xhci->num_scratch_bufs, xhci->scratchpad_arr,
-      xhci->pagesize, ac64);
-
-  /* Initialise USB legacy support and claim ownership */
-  //xhci_legacy_init(xhci);
-  //xhci_legacy_claim(xhci);
-  //xhci_extended_capabilities_foreach(xhci);
-
-  grub_millisleep(10000);
-
-  /* Build list of xHCI controllers */
-  xhci_list_add(xhci);
-  cur_xhci_id += 1;
-
-  return 0;
-}
-
-struct xhci *xhci_list_first(int *iter)
-{
-  if (xhci_list_num_elems == 0)
-  {
-    return NULL;
-  }
-
-  *iter = 0;
-  return xhci_list[0];
-}
-
-struct xhci *xhci_list_last(void)
-{
-  if (xhci_list_num_elems == 0)
-  {
-    return NULL;
-  }
-
-  return xhci_list[xhci_list_num_elems - 1];
-}
-
-int xhci_list_add(struct xhci *xhci)
-{
-  if (xhci_list_num_elems >= (int)(sizeof (xhci_list) / sizeof (xhci_list[0])))
-  {
-    return -1;
-  }
-
-  xhci_list[xhci_list_num_elems] = xhci;
-  xhci_list_num_elems++;
-  return 0;
-}
-
-struct xhci *xhci_list_next(int *iter)
-{
-  if (*iter >= xhci_list_num_elems - 1)
-  {
-    return NULL;
-  }
-
-  return xhci_list[*iter];
-}
-
 
 /*
  * Read PCI BAR
@@ -2026,16 +1877,3 @@ xhci_legacy_init (struct xhci *xhci)
 //      "disabling SMIs\n", xhci->name );
 //  writel ( 0, xhci->cap + xhci->legacy + XHCI_USBLEGSUP_CTLSTS );
 //}
-
-void xhci_driver_init(void)
-{
-  /* Sanity check register addresses.
-   * No limits.h or CHAR_BIT available, use GRUB_CHAR_BIT.
-   */
-  COMPILE_TIME_ASSERT(GRUB_CHAR_BIT == 8);
-  COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_cap_regs, hccparams2) == 0x1c);
-  COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_oper_regs, config) == 0x38);
-
-  xhci_list_num_elems = 0;
-  cur_xhci_id = 0;
-}

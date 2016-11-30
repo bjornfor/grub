@@ -7,43 +7,31 @@
 
 struct xhci; /* hidden */
 
-void xhci_driver_init(void);
+enum xhci_speed {
+  XHCI_SPEED_NONE = 0,
+  XHCI_SPEED_LOW,
+  XHCI_SPEED_FULL,
+  XHCI_SPEED_HIGH,
+  XHCI_SPEED_SUPER,
+};
 
 struct xhci *xhci_new(void);
 
-struct xhci *xhci_list_first(int *iter);
-struct xhci *xhci_list_last(void);
-int xhci_list_add(struct xhci *xhci);
-struct xhci *xhci_list_next(int *iter);
+int xhci_init (struct xhci *xhci, volatile void *mmio_base_addr, int seqno);
 
-int xhci_init (struct xhci *xhci, volatile void *mmio_base_addr,
-    grub_pci_device_t dev, int seqno);
+int xhci_setup_transfer (struct xhci *xhci);
 
-/* PCI iteration function, to be passed to grub_pci_iterate.
- *
- * grub_pci_iterate will invoke this function for each PCI device that exists
- * in the system. This function checks if the device is an xHC and initializes
- * it. Return 0 to continue iterating over devices, != 0 to abort.
- */
-int xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data);
+int xhci_check_transfer (struct xhci *xhci);
 
-grub_usb_err_t xhci_setup_transfer (grub_usb_controller_t dev,
-                                    grub_usb_transfer_t transfer);
+int xhci_cancel_transfer (struct xhci *xhci);
 
-grub_usb_err_t xhci_check_transfer (grub_usb_controller_t dev,
-                                    grub_usb_transfer_t transfer,
-                                    grub_size_t *actual);
+int xhci_hubports (struct xhci *xhci);
 
-grub_usb_err_t xhci_cancel_transfer (grub_usb_controller_t dev,
-                                     grub_usb_transfer_t transfer);
-
-int xhci_hubports (grub_usb_controller_t dev);
-
-grub_usb_err_t xhci_portstatus (grub_usb_controller_t dev,
+int xhci_portstatus (struct xhci *xhci,
                                 unsigned int port,
                                 unsigned int enable);
 
-grub_usb_speed_t xhci_detect_dev (grub_usb_controller_t dev,
+enum xhci_speed xhci_detect_dev (struct xhci *xhci,
                                   int port, int *changed);
 
 #endif /* XHCI_H */
