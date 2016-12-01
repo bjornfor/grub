@@ -1,7 +1,9 @@
 #ifndef XHCI_IO_H
 #define XHCI_IO_H
 
-#include <stdint.h>
+#include <stdint.h> /* uint32_t */
+#include <stddef.h> /* size_t */
+#include <stdarg.h> /* va_list */
 
 uint32_t le_to_cpu32(uint32_t val);
 

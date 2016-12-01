@@ -5,6 +5,10 @@
  * and printing to the screen.
  */
 
+#include <stdint.h> /* uint32_t */
+#include <stddef.h> /* size_t */
+#include <stdarg.h> /* va_list */
+
 #include <grub/types.h> /* grub_uint32_t, grub_cpu_to_le32 */
 #include <grub/pci.h> /* grub_memalign_dma32, grub_dma_get_phys */
 #include <grub/mm.h> /* grub_zalloc */
