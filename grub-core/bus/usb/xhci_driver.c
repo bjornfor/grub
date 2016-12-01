@@ -186,18 +186,7 @@ xhci_fini_hw (int noreturn __attribute__ ((unused)))
 
   /* We should disable all xHCI HW to prevent any DMA access etc. */
   for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
-    {
-      /* Disable both lists */
-      //grub_xhci_oper_write32 (xhci, GRUB_XHCI_OPER_USBCMD,
-       // ~(GRUB_XHCI_CMD_AS_ENABL | GRUB_XHCI_CMD_PS_ENABL)
-        //& grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBCMD));
-
-      /* Check if xHCI is halted and halt it if not */
-      //grub_xhci_halt (xhci);
-
-      /* Reset xHCI */
-      //grub_xhci_reset (xhci);
-    }
+    xhci_destroy(xhci);
 
   return GRUB_ERR_NONE;
 }

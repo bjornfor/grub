@@ -22,6 +22,9 @@ enum xhci_speed {
  */
 struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno);
 
+/* De-initialize controller and free memory */
+void xhci_destroy (struct xhci *xhci);
+
 int xhci_halt (struct xhci *xhci);
 
 /* TODO: handle missing "transfer" parameter */

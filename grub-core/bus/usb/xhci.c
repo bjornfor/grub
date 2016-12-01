@@ -1725,6 +1725,13 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
   return xhci;
 }
 
+void xhci_destroy (struct xhci *xhci)
+{
+  xhci_halt (xhci);
+  xhci_reset (xhci);
+  xhci_free (xhci);
+}
+
 /** xHCI extended capability ID */
 #define XHCI_XECP_ID(xecp) (((xecp) >> 0) & 0xff)
 
