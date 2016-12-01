@@ -42,6 +42,8 @@ int xhci_portstatus (struct xhci *xhci,
 enum xhci_speed xhci_detect_dev (struct xhci *xhci,
                                   int port, int *changed);
 
+/* for debugging */
 int xhci_nop(struct xhci *xhci);
+int xhci_status(struct xhci *xhci);
 
 #endif /* XHCI_H */

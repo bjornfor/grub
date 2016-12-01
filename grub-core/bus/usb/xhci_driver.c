@@ -9,11 +9,14 @@
 #include <grub/disk.h> /* grub_stop_disk_firmware */
 #include <grub/loader.h> /* grub_loader_register_preboot_hook */
 #include <grub/env.h> /* grub_env_get */
+#include <grub/command.h> /* struct grub_command_t */
 
 #include "xhci.h"
 //#include "xhci_io.h"
 
 GRUB_MOD_LICENSE ("GPLv3+");
+
+static grub_command_t cmd_xhci_status;
 
 static unsigned int cur_xhci_id;
 static struct xhci *xhci_list[16];
@@ -76,6 +79,21 @@ static void dbg(const char *fmt, ...)
     grub_vprintf (fmt, ap);
     va_end (ap);
   }
+}
+
+static grub_err_t
+do_cmd_xhci_status (struct grub_command *cmd __attribute__ ((unused)),
+    int argc __attribute__ ((unused)),
+    char *argv[] __attribute__ ((unused)))
+{
+  //dbg("do_cmd_xhci_status called\n");
+  int iter;
+  struct xhci *xhci;
+
+  for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
+    xhci_status(xhci);
+
+  return 0;
 }
 
 /* PCI iteration function, to be passed to grub_pci_iterate.
@@ -149,7 +167,7 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
   //xhci_legacy_claim(xhci);
   //xhci_extended_capabilities_foreach(xhci);
 
-  grub_millisleep(10000);
+  //grub_millisleep(10000);
 
   /* Build list of xHCI controllers */
   xhci_list_add(xhci);
@@ -356,12 +374,18 @@ GRUB_MOD_INIT (xhci)
   dbg ("xHCI driver is registered, register preboot hook\n");
   grub_loader_register_preboot_hook (xhci_fini_hw, xhci_restore_hw,
 				     GRUB_LOADER_PREBOOT_HOOK_PRIO_DISK);
+
+  cmd_xhci_status =
+    grub_register_command ("xhci", do_cmd_xhci_status,
+			   /* TRANSLATORS: it's a command description.  */
+			   0, N_("Print xHCI driver status."));
   dbg ("GRUB_MOD_INIT completed\n");
 }
 
 GRUB_MOD_FINI (xhci)
 {
   //dbg ("[unloading]\n");
+  grub_unregister_command (cmd_xhci_status);
   xhci_fini_hw (0);
   grub_usb_controller_dev_unregister (&usb_controller_dev);
 }

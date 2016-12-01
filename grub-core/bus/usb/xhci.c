@@ -563,56 +563,20 @@ xhci_detect_dev (struct xhci *xhci, int port, int *changed)
   (void)xhci;
   (void)line_state;
   (void)status;
-  static int state;
   uint32_t portsc;
 
   //xhci_trace ("xhci_detect_dev port=%d\n", port);
-  if (xhci_debug_enabled())
-  {
-
-
-    for (unsigned int i=0; i<xhci->max_ports; i++)
-    {
-      xhci_dump_oper_portsc(xhci, i);
-      xhci_printf ("\n");
-    }
-    xhci_printf ("\n");
-    xhci_mdelay(2000);
-    return 0;
-
-
-    xhci_dump_oper_portsc(xhci, port);
-    xhci_printf ("\n");
-  }
   portsc = xhci_read_portrs (xhci, port, PORTSC);
   if (parse_reg(portsc, XHCI_OP_PORTSC_CCS))
   {
-    xhci_printf ("xHCI port %d IS CONNECTED!!!\n", port);
-    xhci_mdelay (1000);
+    /* TODO: */
+    *changed = 1;
+    return XHCI_SPEED_SUPER;
   }
-
-  if (xhci_debug_enabled())
-    xhci_mdelay (500);
-
-  switch (state) {
-    case 0:
-      state = 0;
-      *changed = 1;
-      return XHCI_SPEED_SUPER;
-
-    case 1:
-      state = 2;
-      *changed = 0;
-      return XHCI_SPEED_NONE;
-
-    case 2:
-      state = 0;
-      *changed = 1;
-      return XHCI_SPEED_SUPER;
-      break;
-
-    default:
-      break;
+  else
+  {
+    *changed = 0;
+    return XHCI_SPEED_NONE;
   }
 
   return XHCI_SPEED_NONE;
@@ -690,8 +654,8 @@ xhci_portstatus (struct xhci *xhci,
   (void)xhci;
   (void)port;
   (void)enable;
-  xhci_trace ("xhci_portstatus enter (port=%d, enable=%d)\n",
-      port, enable);
+  //xhci_trace ("xhci_portstatus enter (port=%d, enable=%d)\n",
+  //    port, enable);
   return 0;
 
 #if 0
@@ -1343,6 +1307,30 @@ int xhci_nop(struct xhci *xhci)
   rc = xhci_command(xhci, &trb);
   if (rc != 0)
     return rc;
+
+  return 0;
+}
+
+int xhci_status(struct xhci *xhci)
+{
+  uint32_t portsc;
+
+  xhci_printf("XHCI-%s PORTSC(n):", xhci->name);
+  for (int port=0; port<xhci->max_ports; port++)
+  {
+    portsc = xhci_read_portrs (xhci, port, PORTSC);
+    if (parse_reg(portsc, XHCI_OP_PORTSC_CCS))
+    {
+      xhci_printf(" %d", port);
+    }
+  }
+  xhci_printf("\n");
+
+  for (int i=0; i<xhci->max_ports; i++)
+  {
+    xhci_dump_oper_portsc(xhci, i);
+    xhci_printf ("\n");
+  }
 
   return 0;
 }
