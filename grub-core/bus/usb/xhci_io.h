@@ -2,13 +2,6 @@
 #define XHCI_IO_H
 
 #include <stdint.h>
-//#include <grub/types.h>
-//#include <grub/pci.h>
-
-//#include "xhci_private.h"
-
-//#define cpu_to_le64 grub_cpu_to
-//#define grub_cpu_to_le64(grub_dma_virt2phys((void*)event->trb, (void*)event->trb));
 
 uint32_t le_to_cpu32(uint32_t val);
 
