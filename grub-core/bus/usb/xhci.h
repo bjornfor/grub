@@ -47,6 +47,6 @@ enum xhci_speed xhci_detect_dev (struct xhci *xhci,
 
 /* for debugging */
 int xhci_nop(struct xhci *xhci);
-int xhci_status(struct xhci *xhci);
+int xhci_status(struct xhci *xhci, int verbose);
 
 #endif /* XHCI_H */

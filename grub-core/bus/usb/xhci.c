@@ -1311,7 +1311,7 @@ int xhci_nop(struct xhci *xhci)
   return 0;
 }
 
-int xhci_status(struct xhci *xhci)
+int xhci_status(struct xhci *xhci, int verbose)
 {
   uint32_t portsc;
 
@@ -1327,11 +1327,14 @@ int xhci_status(struct xhci *xhci)
   }
   xhci_printf("\n");
 
-  /* Full dump of PORTSC regs */
-  for (int i=0; i<xhci->max_ports; i++)
+  if (verbose)
   {
-    xhci_dump_oper_portsc(xhci, i);
-    xhci_printf ("\n");
+    /* Full dump of PORTSC regs */
+    for (int i=0; i<xhci->max_ports; i++)
+    {
+      xhci_dump_oper_portsc(xhci, i);
+      xhci_printf ("\n");
+    }
   }
 
   return 0;

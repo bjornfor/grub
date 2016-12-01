@@ -82,16 +82,22 @@ static void dbg(const char *fmt, ...)
 }
 
 static grub_err_t
-do_cmd_xhci_status (struct grub_command *cmd __attribute__ ((unused)),
-    int argc __attribute__ ((unused)),
-    char *argv[] __attribute__ ((unused)))
+do_cmd_xhci_status (struct grub_command *cmd, int argc, char *argv[])
 {
-  //dbg("do_cmd_xhci_status called\n");
   int iter;
   struct xhci *xhci;
+  int verbose = 0;
+ 
+  if (argc > 1)
+  {
+    if (grub_strcmp (argv[1], "-v") == 0)
+    {
+      verbose = 1;
+    }
+  }
 
   for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
-    xhci_status(xhci);
+    xhci_status(xhci, verbose);
 
   return 0;
 }
