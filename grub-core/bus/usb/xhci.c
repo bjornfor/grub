@@ -148,7 +148,7 @@ static uint32_t xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci
 
   if (port > xhci->max_ports)
   {
-    xhci_err ("too big port number\n");
+    xhci_err ("too big port number (port=%d, max_ports=%d)\n", port, xhci->max_ports);
     return 0;
   }
 
