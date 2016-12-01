@@ -36,6 +36,7 @@ int xhci_check_transfer (struct xhci *xhci);
 /* TODO: handle missing "transfer" parameter */
 int xhci_cancel_transfer (struct xhci *xhci);
 
+/* Return the number of ports the root hub has */
 int xhci_hubports (struct xhci *xhci);
 
 int xhci_portstatus (struct xhci *xhci,
