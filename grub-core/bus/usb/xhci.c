@@ -37,8 +37,6 @@
 #include "xhci_io.h"
 #include "xhci_private.h"
 
-//#include <grub/term.h> /* grub_refresh */
-
 //static void
 //mmio_set_bits(volatile uint32_t *addr, uint32_t bits)
 //{
@@ -115,7 +113,6 @@ static void xhci_trace(const char *fmt, ...)
       va_start (args, fmt);
       xhci_vprintf (fmt, args);
       va_end (args);
-      //grub_refresh ();
     }
 }
 
@@ -132,7 +129,6 @@ static void xhci_dbg(const char *fmt, ...)
       va_start (args, fmt);
       xhci_vprintf (fmt, args);
       va_end (args);
-      //grub_refresh ();
     }
 }
 
@@ -143,7 +139,6 @@ static void xhci_err(const char *fmt, ...)
   va_start (args, fmt);
   xhci_vprintf (fmt, args);
   va_end (args);
-  //grub_refresh ();
 }
 
 /* Read Port Register Set n of given type */

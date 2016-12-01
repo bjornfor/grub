@@ -1,6 +1,8 @@
 /*
- * IO layer (or more generic: "interface layer") for xHCI driver, custom
- * implementation for GRUB.
+ * xHCI driver IO layer, for GRUB.
+ *
+ * Here are all functions that have side effects, like reading/writing to memory
+ * and printing to the screen.
  */
 
 #include <grub/types.h> /* grub_uint32_t, grub_cpu_to_le32 */
@@ -22,7 +24,6 @@ uint32_t cpu_to_le32(uint32_t val)
 {
   return grub_cpu_to_le32(val);
 }
-
 
 uint64_t cpu_to_le64(uint64_t val)
 {
