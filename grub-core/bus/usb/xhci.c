@@ -1315,7 +1315,8 @@ int xhci_status(struct xhci *xhci)
 {
   uint32_t portsc;
 
-  xhci_printf("XHCI-%s PORTSC(n):", xhci->name);
+  /* Print connected ports */
+  xhci_printf("XHCI-%s cap=0x%08x PORTSC(n):", xhci->name, xhci->cap_regs);
   for (int port=0; port<xhci->max_ports; port++)
   {
     portsc = xhci_read_portrs (xhci, port, PORTSC);
@@ -1326,6 +1327,7 @@ int xhci_status(struct xhci *xhci)
   }
   xhci_printf("\n");
 
+  /* Full dump of PORTSC regs */
   for (int i=0; i<xhci->max_ports; i++)
   {
     xhci_dump_oper_portsc(xhci, i);
