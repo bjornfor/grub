@@ -1627,7 +1627,7 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
   /* Sanity check register addresses.
    * No limits.h or CHAR_BIT available, use GRUB_CHAR_BIT.
    */
-  COMPILE_TIME_ASSERT(GRUB_CHAR_BIT == 8);
+  //COMPILE_TIME_ASSERT(GRUB_CHAR_BIT == 8); /* cannot depend on GRUB in this file */
   COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_cap_regs, hccparams2) == 0x1c);
   COMPILE_TIME_ASSERT(OFFSETOF(struct xhci_oper_regs, config) == 0x38);
 

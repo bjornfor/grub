@@ -1,6 +1,8 @@
 #ifndef XHCI_PRIVATE_H
 #define XHCI_PRIVATE_H
 
+#define COMPILE_TIME_ASSERT(cond) switch (0) { case 1: case !(cond): ; }
+
 /* Where is the standard "offsetof" macro */
 #define OFFSETOF(T, m) \
   ((size_t) (((uint8_t *) &(((T*)NULL)->m)) - ((uint8_t *) ((T*) NULL))))
