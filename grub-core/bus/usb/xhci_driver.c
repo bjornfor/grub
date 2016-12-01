@@ -15,8 +15,6 @@
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
-#define XHCI_ADDR_MEM_MASK	(~0xff)
-
 static unsigned int cur_xhci_id;
 static struct xhci *xhci_list[16];
 static int xhci_list_num_elems;
@@ -136,9 +134,8 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
       | GRUB_PCI_COMMAND_BUS_MASTER
       | grub_pci_read_word(addr));
 
-  mmio_base_addr = grub_pci_device_map_range (dev,
-      (base & XHCI_ADDR_MEM_MASK),
-      0x100); /* PCI config space is 256 bytes */
+  /* PCI config space is 256 bytes */
+  mmio_base_addr = grub_pci_device_map_range (dev, base, 0x100);
 
   xhci = xhci_create(mmio_base_addr, cur_xhci_id);
   if (!xhci)
