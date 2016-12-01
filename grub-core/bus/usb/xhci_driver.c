@@ -10,13 +10,15 @@
 #include <grub/loader.h> /* grub_loader_register_preboot_hook */
 #include <grub/env.h> /* grub_env_get */
 #include <grub/command.h> /* struct grub_command_t */
+#include <grub/extcmd.h> /* grub_register_extcmd */
+#include <grub/lib/arg.h> /* struct grub_arg_option */
 
 #include "xhci.h"
 //#include "xhci_io.h"
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
-static grub_command_t cmd_xhci_status;
+static grub_extcmd_t cmd_xhci_status;
 
 static unsigned int cur_xhci_id;
 static struct xhci *xhci_list[16];
@@ -81,20 +83,27 @@ static void dbg(const char *fmt, ...)
   }
 }
 
+static const struct grub_arg_option cmd_options[] =
+  {
+    {"verbose", 'v', 0,
+     N_("Be verbose."), 0, ARG_TYPE_NONE},
+    {0, 0, 0, 0, 0, 0}
+  };
+
+
 static grub_err_t
-do_cmd_xhci_status (struct grub_command *cmd, int argc, char *argv[])
+do_cmd_xhci_status (grub_extcmd_context_t ctxt, int argc, char *argv[])
 {
   int iter;
   struct xhci *xhci;
   int verbose = 0;
+  (void)argc;
+  (void)argv;
+
+  struct grub_arg_list *state = ctxt->state;
  
-  if (argc > 1)
-  {
-    if (grub_strcmp (argv[1], "-v") == 0)
-    {
-      verbose = 1;
-    }
-  }
+  if (state[0].set)
+    verbose = 1;
 
   for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
     xhci_status(xhci, verbose);
@@ -371,16 +380,17 @@ GRUB_MOD_INIT (xhci)
 				     GRUB_LOADER_PREBOOT_HOOK_PRIO_DISK);
 
   cmd_xhci_status =
-    grub_register_command ("xhci", do_cmd_xhci_status,
-			   /* TRANSLATORS: it's a command description.  */
-			   0, N_("Print xHCI driver status."));
+    grub_register_extcmd ("xhci", do_cmd_xhci_status, 0,
+        N_("[-v|--verbose]"),
+        N_("Print xHCI driver status."),
+        cmd_options);
   dbg ("GRUB_MOD_INIT completed\n");
 }
 
 GRUB_MOD_FINI (xhci)
 {
   //dbg ("[unloading]\n");
-  grub_unregister_command (cmd_xhci_status);
+  grub_unregister_extcmd (cmd_xhci_status);
   xhci_fini_hw (0);
   grub_usb_controller_dev_unregister (&usb_controller_dev);
 }
