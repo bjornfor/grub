@@ -1328,7 +1328,7 @@ err_enqueue:
  * @v xhci		xHCI device
  * @ret rc		Return status code
  */
-static int xhci_nop(struct xhci *xhci)
+int xhci_nop(struct xhci *xhci)
 {
   union xhci_trb trb;
   struct xhci_trb_common *nop = &trb.common;
