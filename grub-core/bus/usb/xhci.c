@@ -1556,7 +1556,7 @@ xhci_setup_ring(struct xhci *xhci,
     unsigned int shift, unsigned int slot,
     unsigned int target, unsigned int stream)
 {
-  int min_align = 64;
+  int min_align = 64*1024;
   int count = 1 << shift;
   int len = (count + 1 /* Link TRB */) * sizeof (ring->trbs[0]);
   (void)xhci;
