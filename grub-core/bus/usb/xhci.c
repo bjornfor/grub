@@ -1639,7 +1639,7 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
 
   xhci = xhci_calloc (1, sizeof (struct xhci));
   xhci_snprintf(xhci->name, sizeof(xhci->name), "%d", seqno);
-  xhci->sbrn = 0; //pci_config_read8 (dev, XHCI_PCI_SBRN_REG);
+  //xhci->sbrn = pci_config_read8 (dev, XHCI_PCI_SBRN_REG);
 
   /* Locate capability, operational, runtime, and doorbell registers */
   xhci->cap_regs = mmio_base_addr;
@@ -1717,8 +1717,8 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
   xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
       xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
   ac64 = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_AC64);
-  xhci_dbg("XHCI-%s: SBRN=%02x scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
-      xhci->name, xhci->sbrn, xhci->num_scratch_bufs, xhci->scratchpad_arr,
+  xhci_dbg("XHCI-%s: scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
+      xhci->name, xhci->num_scratch_bufs, xhci->scratchpad_arr,
       xhci->pagesize, ac64);
 
   return xhci;
