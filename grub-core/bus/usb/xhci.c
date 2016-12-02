@@ -1425,10 +1425,7 @@ xhci_allocate_dcbaa(struct xhci *xhci)
   xhci->dcbaa_len = (xhci->max_device_slots + 1) * sizeof (xhci->dcbaa[0]);
   xhci->dcbaa = xhci_memalign(xhci->dcbaa_len);
   if (!xhci->dcbaa)
-  {
-    xhci_err ("out of memory, couldn't allocate DCBAA memory\n");
     return -1;
-  }
 
   xhci_memset(xhci->dcbaa, 0, xhci->dcbaa_len);
   return 0;
@@ -1495,7 +1492,6 @@ xhci_setup_scratchpad(struct xhci *xhci)
   xhci->scratchpads = xhci_memalign(xhci->scratchpads_len);
   if (!xhci->scratchpads)
   {
-    xhci_err ("out of memory, couldn't allocate Scratchpad Buffer memory\n");
     return -1;
   }
   xhci_memset(xhci->scratchpads, 0, xhci->scratchpads_len);
@@ -1504,10 +1500,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
   xhci->scratchpad_arr_len = xhci->num_scratch_bufs * sizeof (xhci->scratchpad_arr[0]);
   xhci->scratchpad_arr = xhci_memalign(xhci->scratchpad_arr_len);
   if (!xhci->scratchpad_arr)
-  {
-    xhci_err ("out of memory, couldn't allocate Scratchpad Buffer Array memory\n");
     return -1;
-  }
   xhci_memset(xhci->scratchpad_arr, 0, xhci->scratchpad_arr_len);
 
   /* Fill Scratchpad Buffers Array with addresses of the scratch buffers */
