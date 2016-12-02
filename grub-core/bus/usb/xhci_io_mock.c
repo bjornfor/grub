@@ -123,23 +123,23 @@ mmio_read64 (const volatile uint64_t *addr)
 void
 mmio_write8 (volatile uint8_t *addr, uint8_t val)
 {
-  printf("writing 8-bits to %p: %x\n", addr, val);
+  printf("writing 8-bits to %p: 0x%x\n", addr, val);
 }
 
 void
 mmio_write16 (volatile uint16_t *addr, uint16_t val)
 {
-  printf("writing 16-bits to %p: %x\n", addr, val);
+  printf("writing 16-bits to %p: 0x%x\n", addr, val);
 }
 
 void
 mmio_write32 (volatile uint32_t *addr, uint32_t val)
 {
-  printf("writing 32-bits to %p: %x\n", addr, val);
+  printf("writing 32-bits to %p: 0x%x\n", addr, val);
 }
 
 void
 mmio_write64 (volatile uint64_t *addr, uint64_t val)
 {
-  printf("writing 64-bits to %p: %llx\n", addr, (unsigned long long int)val);
+  printf("writing 64-bits to %p: 0x%llx\n", addr, (unsigned long long int)val);
 }
