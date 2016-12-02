@@ -577,12 +577,12 @@ struct xhci
   /* Cached from xHCI */
   uint8_t max_device_slots; /* valid range 1-255 */
   uint8_t max_ports; /* valid range 1-255 */
-
-  /* Other data */
-  char name[16]; /* for identification purposes in debug output */
   int sbrn; /* Serial Bus Release Number register value */
   int pagesize; /* in bytes */
   uint8_t num_enabled_slots;
+
+  /* Other data */
+  char name[16]; /* for identification purposes in debug output */
   uint64_t *dcbaa;     /* virtual address, dynamically allocated array
                                where each element points to a Slot Context */
   uint32_t dcbaa_len;  /* size in bytes */
