@@ -163,8 +163,7 @@ static uint32_t xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci
 }
 
 /* Convert raw PAGESIZE value from Operational Register to a size in bytes */
-static size_t
-xhci_pagesize_to_bytes(int pagesize)
+static size_t xhci_pagesize_to_bytes(int pagesize)
 {
   return 1 << (pagesize + 12);
 }
@@ -1470,7 +1469,6 @@ static int
 xhci_setup_scratchpad(struct xhci *xhci)
 {
   int i;
-  size_t pagesize;
   uint32_t scratchpad_phys;
   uint32_t scratchpad_arr_phys;
 
@@ -1486,9 +1484,8 @@ xhci_setup_scratchpad(struct xhci *xhci)
   }
 
   /* Allocate Scratchpad Buffers */
-  pagesize = xhci_pagesize_to_bytes(
+  xhci->pagesize = xhci_pagesize_to_bytes(
       mmio_read_bits(&xhci->oper_regs->pagesize, XHCI_OP_PAGESIZE));
-  xhci->pagesize = pagesize;
   xhci->scratchpads_len = xhci->num_scratch_bufs * xhci->pagesize;
   xhci->scratchpads = xhci_memalign(xhci->scratchpads_len);
   if (!xhci->scratchpads)
@@ -1511,7 +1508,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
   /* Fill Scratchpad Buffers Array with addresses of the scratch buffers */
   for (i = 0; i < xhci->num_scratch_bufs; i++)
   {
-    scratchpad_phys = xhci_dma_get_phys(xhci->scratchpads + pagesize * i);
+    scratchpad_phys = xhci_dma_get_phys(xhci->scratchpads + xhci->pagesize * i);
     xhci->scratchpad_arr[i] = scratchpad_phys;
   }
 
@@ -1668,13 +1665,11 @@ xhci_setup_event_ring(struct xhci *xhci)
 
 struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
 {
-  (void)seqno;
   int rc;
   struct xhci *xhci = NULL;
   int32_t hcsparams1;
   //uint32_t hcsparams2;
   //uint32_t hccparams1;
-  //uint32_t pagesize;
 
   /* Sanity check register addresses.
    * No limits.h or CHAR_BIT available, use GRUB_CHAR_BIT.
