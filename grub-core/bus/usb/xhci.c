@@ -1431,22 +1431,19 @@ static int
 xhci_setup_scratchpad(struct xhci *xhci)
 {
   const int min_align = 64;
-  int num_scratch_bufs;
   int i;
   size_t pagesize;
   uint32_t scratchpad_phys;
   uint32_t scratchpad_arr_phys;
 
-  num_scratch_bufs = mmio_read_bits(&xhci->cap_regs->hcsparams2,
+  xhci->num_scratch_bufs = mmio_read_bits(&xhci->cap_regs->hcsparams2,
       XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_LO)
     | (mmio_read_bits(&xhci->cap_regs->hcsparams2,
       XHCI_CAP_HCSPARAMS2_MAX_SCRATCH_BUFS_HI) << 5);
 
-  xhci->num_scratch_bufs = num_scratch_bufs;
-
-  if (!num_scratch_bufs)
+  if (!xhci->num_scratch_bufs)
   {
-    xhci_trace("xHC needs %d scratchpad buffers\n", num_scratch_bufs);
+    xhci_trace("xHC needs %d scratchpad buffers\n", xhci->num_scratch_bufs);
     return 0;
   }
 
@@ -1454,7 +1451,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
   pagesize = xhci_pagesize_to_bytes(
       mmio_read_bits(&xhci->oper_regs->pagesize, XHCI_OP_PAGESIZE));
   xhci->pagesize = pagesize;
-  xhci->scratchpads_len = num_scratch_bufs * pagesize;
+  xhci->scratchpads_len = xhci->num_scratch_bufs * pagesize;
   xhci->scratchpads = (uint8_t*)xhci_dma_alloc (min_align, xhci->scratchpads_len);
   if (!xhci->scratchpads)
   {
@@ -1464,7 +1461,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
   xhci_memset(xhci->scratchpads, 0, xhci->scratchpads_len);
 
   /* Allocate Scratchpad Buffer Array, where each element points to a buffer */
-  xhci->scratchpad_arr_len = num_scratch_bufs * sizeof (xhci->scratchpad_arr[0]);
+  xhci->scratchpad_arr_len = xhci->num_scratch_bufs * sizeof (xhci->scratchpad_arr[0]);
   xhci->scratchpad_arr = (uint64_t*)xhci_dma_alloc (min_align, xhci->scratchpad_arr_len);
   if (!xhci->scratchpad_arr)
   {
@@ -1474,7 +1471,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
   xhci_memset(xhci->scratchpad_arr, 0, xhci->scratchpad_arr_len);
 
   /* Fill Scratchpad Buffers Array with addresses of the scratch buffers */
-  for (i = 0; i < num_scratch_bufs; i++)
+  for (i = 0; i < xhci->num_scratch_bufs; i++)
   {
     scratchpad_phys = xhci_dma_get_phys(xhci->scratchpads + pagesize * i);
     xhci->scratchpad_arr[i] = scratchpad_phys;
@@ -1483,7 +1480,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
   /* Write Scratchpad Buffers Array base address to xHC */
   scratchpad_arr_phys = xhci_dma_get_phys(xhci->scratchpad_arr);
   xhci_trace ("Scratchpad Buffer Array (nbuf=%d) at 0x%08x (virt 0x%08x), len=%d bytes\n",
-      num_scratch_bufs, scratchpad_arr_phys, xhci->scratchpad_arr, xhci->scratchpad_arr_len);
+      xhci->num_scratch_bufs, scratchpad_arr_phys, xhci->scratchpad_arr, xhci->scratchpad_arr_len);
    /* The location of the Scratcphad Buffer array is defined by entry 0 of the
     * DCBAA. We only support 32-bit.
     */

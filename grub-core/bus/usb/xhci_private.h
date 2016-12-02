@@ -581,6 +581,7 @@ struct xhci
   int pagesize; /* in bytes */
   uint8_t num_enabled_slots;
   int ac64; /* controller supports 64-bit addressing */
+  int num_scratch_bufs;
 
   /* Other data */
   char name[16]; /* for identification purposes in debug output */
@@ -589,7 +590,6 @@ struct xhci
   uint32_t dcbaa_len;  /* size in bytes */
   uint8_t *scratchpads;    /* virtual address, dynamically allocated array */
   uint8_t scratchpads_len;
-  int num_scratch_bufs;
   uint64_t *scratchpad_arr;  /* virtual address, dynamically allocated array
                                      with physical address pointers to
                                      pagesized areas in "scratchpads" memory
