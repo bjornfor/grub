@@ -1717,8 +1717,7 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
   xhci_setup_command_ring(xhci);
 
   /* Setup Event Ring */
-  rc = xhci_setup_event_ring(xhci);
-  xhci_printf("xhci_setup_event_ring returned %d\n", rc);
+  xhci_setup_event_ring(xhci);
 
   /* Interrupts is not supported by this driver, so skipped */
 
