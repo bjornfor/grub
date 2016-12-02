@@ -1431,6 +1431,7 @@ static int
 xhci_setup_scratchpad(struct xhci *xhci)
 {
   const int min_align = 64;
+  int min_align_sbufs;
   int i;
   size_t pagesize;
   uint32_t scratchpad_phys;
@@ -1451,8 +1452,9 @@ xhci_setup_scratchpad(struct xhci *xhci)
   pagesize = xhci_pagesize_to_bytes(
       mmio_read_bits(&xhci->oper_regs->pagesize, XHCI_OP_PAGESIZE));
   xhci->pagesize = pagesize;
-  xhci->scratchpads_len = xhci->num_scratch_bufs * pagesize;
-  xhci->scratchpads = (uint8_t*)xhci_dma_alloc (min_align, xhci->scratchpads_len);
+  min_align_sbufs = xhci->pagesize;
+  xhci->scratchpads_len = xhci->num_scratch_bufs * xhci->pagesize;
+  xhci->scratchpads = (uint8_t*)xhci_dma_alloc (min_align_sbufs, xhci->scratchpads_len);
   if (!xhci->scratchpads)
   {
     xhci_err ("out of memory, couldn't allocate Scratchpad Buffer memory\n");
