@@ -1512,8 +1512,6 @@ xhci_setup_scratchpad(struct xhci *xhci)
 
   /* Write Scratchpad Buffers Array base address to xHC */
   scratchpad_arr_phys = xhci_dma_get_phys(xhci->scratchpad_arr);
-  xhci_dbg ("Scratchpad Buffer Array (nbuf=%d) at 0x%08x (virt 0x%08x), len=%d bytes\n",
-      xhci->num_scratch_bufs, scratchpad_arr_phys, xhci->scratchpad_arr, xhci->scratchpad_arr_len);
    /* The location of the Scratcphad Buffer array is defined by entry 0 of the
     * DCBAA. We only support 32-bit.
     */
