@@ -1637,7 +1637,6 @@ xhci_setup_event_ring(struct xhci *xhci)
 struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
 {
   (void)seqno;
-  int ac64;
   int rc;
   struct xhci *xhci = NULL;
   int32_t hcsparams1;
@@ -1702,10 +1701,10 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
 
   xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
       xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
-  ac64 = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_AC64);
+  xhci->ac64 = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_AC64);
   xhci_dbg("XHCI-%s: scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
       xhci->name, xhci->num_scratch_bufs, xhci->scratchpad_arr,
-      xhci->pagesize, ac64);
+      xhci->pagesize, xhci->ac64);
 
   /* Start the controller so that it accepts dorbell notifications.
    * We can run commands and the root hub ports will begin reporting device

@@ -580,6 +580,7 @@ struct xhci
   int sbrn; /* Serial Bus Release Number register value */
   int pagesize; /* in bytes */
   uint8_t num_enabled_slots;
+  int ac64; /* controller supports 64-bit addressing */
 
   /* Other data */
   char name[16]; /* for identification purposes in debug output */
