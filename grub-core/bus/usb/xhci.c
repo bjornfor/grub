@@ -109,6 +109,7 @@ static void xhci_trace(const char *fmt, ...)
 
   if (xhci_debug_enabled())
     {
+      /* TODO: create macro, this gets hardcoded to the current file/line! */
       xhci_printf ("%s:%d: ", __FILE__, __LINE__);
       va_start (args, fmt);
       xhci_vprintf (fmt, args);
@@ -144,11 +145,16 @@ static void xhci_err(const char *fmt, ...)
 /* Read Port Register Set n of given type */
 static uint32_t xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci_portrs_type type)
 {
+  static int num_warnings;
   uint8_t *addr;
 
   if (port > xhci->max_ports)
   {
-    xhci_err ("too big port number (port=%d, max_ports=%d)\n", port, xhci->max_ports);
+    if (num_warnings == 0)
+    {
+      xhci_err ("too big port number (port=%d, max_ports=%d)\n", port, xhci->max_ports);
+      num_warnings += 1;
+    }
     return 0;
   }
 
