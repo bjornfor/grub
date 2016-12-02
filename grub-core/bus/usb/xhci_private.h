@@ -193,8 +193,8 @@ enum bits32
    * TRB control word bits. These bits apply to the 3rd word (of 4) in a TRB. A
    * word is 32-bit here. The meaning of the bits depend on the TRB type.
    */
-  /* Only the TRB Type and the C bit is common to all TRBs. All other fields
-   * may vary according to the TRB Type.
+  /* Only the TRB Type and the C bit (cycle bit) is common to all TRBs. All
+   * other fields may vary according to the TRB Type.
    */
   XHCI_TRB_CTRL__TRB_TYPE = BITS(10, 15),
   XHCI_TRB_CTRL__C = BITS(0, 0),
