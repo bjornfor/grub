@@ -1398,7 +1398,12 @@ static size_t xhci_align (size_t size)
  */
 static void *xhci_memalign(size_t size)
 {
-  return xhci_dma_alloc(xhci_align(size), size);
+  void *ptr;
+  ptr = xhci_dma_alloc(xhci_align(size), size);
+  if (!ptr)
+    xhci_err("xhci: out of memory (failed to allocate %d bytes)\n", size);
+
+  return ptr;
 }
 
 /** Allocate memory for xHC Device Context Base Address Array.
