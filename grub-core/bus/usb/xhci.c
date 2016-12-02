@@ -354,8 +354,7 @@ int xhci_halt (struct xhci *xhci)
     {
       xhci_trace ("xhci_halt not halted - halting now\n");
       mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 0);
-      /* Ensure command is written */
-      mmio_read32(&xhci->oper_regs->usbcmd);
+      /* Spec says 16ms is enough */
       for (int i=0; i<=16; i++)
       {
         if (mmio_read_bits(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_HCH))
@@ -381,8 +380,6 @@ xhci_reset (struct xhci *xhci)
   //sync_all_caches (xhci);
 
   mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_HCRST, 1);
-  /* Ensure command is written */
-  mmio_read32(&xhci->oper_regs->usbcmd);
   /* XXX: How long time could take reset of HC ? */
   for (int i=0; i<=1000; i++)
   {
