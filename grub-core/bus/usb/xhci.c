@@ -224,7 +224,7 @@ static int xhci_dump_oper(struct xhci *xhci)
                  , parse_reg(val32, XHCI_OP_USBCMD_RUNSTOP) ? " RUN" : ""
                  , parse_reg(val32, XHCI_OP_USBCMD_HCRST) ? " HCRST" : ""
       );
-  xhci_trace ("USBCMD=0x%08x%s\n",
+  xhci_dbg ("USBCMD=0x%08x%s\n",
       val32, extra);
 
   val32 = mmio_read32(&xhci->oper_regs->usbsts);
@@ -240,22 +240,22 @@ static int xhci_dump_oper(struct xhci *xhci)
                  , parse_reg(val32, XHCI_OP_USBSTS_CNR) ? " CNR" : ""
                  , parse_reg(val32, XHCI_OP_USBSTS_HCE) ? " HCE" : ""
       );
-  xhci_trace ("USBSTS=0x%08x%s\n", val32, extra);
+  xhci_dbg ("USBSTS=0x%08x%s\n", val32, extra);
 
   val32 = mmio_read32 (&xhci->oper_regs->pagesize);
-  xhci_trace ("PAGESIZE=%d (%d bytes)\n",
+  xhci_dbg ("PAGESIZE=%d (%d bytes)\n",
       val32, xhci_pagesize_to_bytes(val32));
 
-  xhci_trace ("DNCTRL=0x%08x\n",
+  xhci_dbg ("DNCTRL=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->dnctrl));
 
-  xhci_trace ("CRCR=0x%08lx\n", /* TODO: implement PRIxuint64_T like macros in standard header */
+  xhci_dbg ("CRCR=0x%08lx\n", /* TODO: implement PRIxuint64_T like macros in standard header */
       mmio_read64 (&xhci->oper_regs->crcr));
 
-  xhci_trace ("DCBAAP=0x%08lx\n",
+  xhci_dbg ("DCBAAP=0x%08lx\n",
       mmio_read64 (&xhci->oper_regs->dcbaap));
 
-  xhci_trace ("CONFIG=0x%08x\n",
+  xhci_dbg ("CONFIG=0x%08x\n",
       mmio_read32 (&xhci->oper_regs->config));
 
   xhci_printf ("PORTSC registers:\n");
@@ -277,35 +277,35 @@ static int xhci_dump_cap(struct xhci *xhci)
   if (!xhci_debug_enabled())
     return 0;
 
-  xhci_trace ("CAPLENGTH=%d\n",
+  xhci_dbg ("CAPLENGTH=%d\n",
       mmio_read_bits (&xhci->cap_regs->caplength_and_hciversion,
         XHCI_CAP_CAPLENGTH));
 
-  xhci_trace ("HCIVERSION=0x%04x\n",
+  xhci_dbg ("HCIVERSION=0x%04x\n",
       mmio_read_bits (&xhci->cap_regs->caplength_and_hciversion,
         XHCI_CAP_HCIVERSION));
 
-  xhci_trace ("HCSPARAMS1=0x%08x\n",
+  xhci_dbg ("HCSPARAMS1=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hcsparams1));
 
-  xhci_trace ("HCSPARAMS2=0x%08x\n",
+  xhci_dbg ("HCSPARAMS2=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hcsparams2));
 
-  xhci_trace ("HCSPARAMS3=0x%08x\n",
+  xhci_dbg ("HCSPARAMS3=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hcsparams3));
 
-  xhci_trace ("HCCPARAMS1=0x%08x\n",
+  xhci_dbg ("HCCPARAMS1=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hccparams1));
 
-  xhci_trace ("DBOFF=0x%08x\n",
+  xhci_dbg ("DBOFF=0x%08x\n",
       RTSOFF_TO_BYTES(mmio_read_bits (&xhci->cap_regs->dboff,
           XHCI_CAP_DBOFF)));
 
-  xhci_trace ("RTSOFF=0x%08x\n",
+  xhci_dbg ("RTSOFF=0x%08x\n",
       RTSOFF_TO_BYTES(mmio_read_bits (&xhci->cap_regs->rtsoff,
           XHCI_CAP_RTSOFF)));
 
-  xhci_trace ("HCCPARAMS2=0x%08x\n",
+  xhci_dbg ("HCCPARAMS2=0x%08x\n",
       mmio_read32 (&xhci->cap_regs->hccparams2));
 
   return 0;
@@ -440,7 +440,7 @@ static void
 sync_all_caches (struct xhci *xhci)
 {
   (void)xhci;
-  xhci_trace("sync_all_caches enter\n");
+  xhci_dbg("sync_all_caches enter\n");
   return;
 #if 0
   if (!xhci)
@@ -462,7 +462,7 @@ int
 xhci_cancel_transfer (struct xhci *xhci)
 {
   (void)xhci;
-  xhci_trace ("xhci_cancel_transfer: begin\n");
+  xhci_dbg ("xhci_cancel_transfer: begin\n");
   return 0;
 
 #if 0
@@ -478,7 +478,7 @@ xhci_cancel_transfer (struct xhci *xhci)
 
   /* QH can be active and should be de-activated and halted */
 
-  xhci_trace ("cancel_transfer: begin\n");
+  xhci_dbg ("cancel_transfer: begin\n");
 
   /* First check if xHCI is running - if not, there is no problem */
   /* to cancel any transfer. Or, if transfer is asynchronous, check */
@@ -491,7 +491,7 @@ xhci_cancel_transfer (struct xhci *xhci)
       grub_xhci_pre_finish_transfer (transfer);
       xhci_free (cdata);
       sync_all_caches (xhci);
-      xhci_trace ("cancel_transfer: end - xHCI not running\n");
+      xhci_dbg ("cancel_transfer: end - xHCI not running\n");
       return GRUB_USB_ERR_NONE;
     }
 
@@ -565,7 +565,7 @@ xhci_cancel_transfer (struct xhci *xhci)
 
   xhci_free (cdata);
 
-  xhci_trace ("cancel_transfer: end\n");
+  xhci_dbg ("cancel_transfer: end\n");
 
   sync_all_caches (xhci);
 
@@ -585,7 +585,7 @@ xhci_detect_dev (struct xhci *xhci, int port, int *changed)
   (void)status;
   uint32_t portsc;
 
-  //xhci_trace ("xhci_detect_dev port=%d\n", port);
+  //xhci_dbg ("xhci_detect_dev port=%d\n", port);
   portsc = xhci_read_portrs (xhci, port, PORTSC);
   if (parse_reg(portsc, XHCI_OP_PORTSC_CCS))
   {
@@ -674,16 +674,16 @@ xhci_portstatus (struct xhci *xhci,
   (void)xhci;
   (void)port;
   (void)enable;
-  //xhci_trace ("xhci_portstatus enter (port=%d, enable=%d)\n",
+  //xhci_dbg ("xhci_portstatus enter (port=%d, enable=%d)\n",
   //    port, enable);
   return 0;
 
 #if 0
   uint64_t endtime;
 
-  xhci_trace ("portstatus: xHCI USBSTS: %08x\n",
+  xhci_dbg ("portstatus: xHCI USBSTS: %08x\n",
 		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBSTS));
-  xhci_trace (
+  xhci_dbg (
 		"portstatus: begin, iobase_cap=%p, port=%d, status=0x%02x\n",
 		xhci->iobase_cap, port, grub_xhci_port_read (xhci, port));
 
@@ -700,13 +700,13 @@ xhci_portstatus (struct xhci *xhci,
 
   if (!enable)			/* We don't need reset port */
     {
-      xhci_trace ("portstatus: Disabled.\n");
-      xhci_trace ("portstatus: end, status=0x%02x\n",
+      xhci_dbg ("portstatus: Disabled.\n");
+      xhci_dbg ("portstatus: end, status=0x%02x\n",
 		    grub_xhci_port_read (xhci, port));
       return GRUB_USB_ERR_NONE;
     }
 
-  xhci_trace ("portstatus: enable\n");
+  xhci_dbg ("portstatus: enable\n");
 
   grub_boot_time ("Resetting port %d", port);
 
@@ -728,7 +728,7 @@ xhci_portstatus (struct xhci *xhci,
   /* Test if port enabled, i.xhci. HIGH speed device connected */
   if ((grub_xhci_port_read (xhci, port) & GRUB_XHCI_PORT_ENABLED) != 0)	/* yes! */
     {
-      xhci_trace ("portstatus: Enabled!\n");
+      xhci_dbg ("portstatus: Enabled!\n");
       /* "Reset recovery time" (USB spec.) */
       mdelay (10);
     }
@@ -746,7 +746,7 @@ xhci_portstatus (struct xhci *xhci,
    * message on screen - but this situation is not error, it is normal
    * state! */
 
-  xhci_trace ("portstatus: end, status=0x%02x\n",
+  xhci_dbg ("portstatus: end, status=0x%02x\n",
 		grub_xhci_port_read (xhci, port));
 
 #endif
@@ -759,9 +759,9 @@ xhci_hubports (struct xhci *xhci)
   unsigned int nports = 0;
 
   nports = xhci->max_ports;
-  xhci_trace ("xhci_hubports nports=%d\n", nports);
+  xhci_dbg ("xhci_hubports nports=%d\n", nports);
 
-  //xhci_trace ("xhci_hubports force nports=0 (prevent hang)\n");
+  //xhci_dbg ("xhci_hubports force nports=0 (prevent hang)\n");
   //nports = 0;
   //xhci->max_ports = nports;
   return nports;
@@ -772,27 +772,27 @@ xhci_check_transfer (struct xhci *xhci)
 {
   (void)xhci;
 
-  //xhci_trace ("xhci_check_transfer enter (TODO: implement)\n");
+  //xhci_dbg ("xhci_check_transfer enter (TODO: implement)\n");
   return 0;
 #if 0
   uint32_t token, token_ftd;
 
   sync_all_caches (xhci);
 
-  xhci_trace (
+  xhci_dbg (
 		"check_transfer: xHCI STATUS=%08x, cdata=%p, qh=%p\n",
 		grub_xhci_oper_read32 (xhci, GRUB_XHCI_OPER_USBSTS),
 		cdata, cdata->qh_virt);
-  xhci_trace ("check_transfer: qh_hptr=%08x, ep_char=%08x\n",
+  xhci_dbg ("check_transfer: qh_hptr=%08x, ep_char=%08x\n",
 		grub_le_to_cpu32 (cdata->qh_virt->qh_hptr),
 		grub_le_to_cpu32 (cdata->qh_virt->ep_char));
-  xhci_trace ("check_transfer: ep_cap=%08x, td_current=%08x\n",
+  xhci_dbg ("check_transfer: ep_cap=%08x, td_current=%08x\n",
 		grub_le_to_cpu32 (cdata->qh_virt->ep_cap),
 		grub_le_to_cpu32 (cdata->qh_virt->td_current));
-  xhci_trace ("check_transfer: next_td=%08x, alt_next_td=%08x\n",
+  xhci_dbg ("check_transfer: next_td=%08x, alt_next_td=%08x\n",
 		grub_le_to_cpu32 (cdata->qh_virt->td_overlay.next_td),
 		grub_le_to_cpu32 (cdata->qh_virt->td_overlay.alt_next_td));
-  xhci_trace ("check_transfer: token=%08x, buffer[0]=%08x\n",
+  xhci_dbg ("check_transfer: token=%08x, buffer[0]=%08x\n",
 		grub_le_to_cpu32 (cdata->qh_virt->td_overlay.token),
 		grub_le_to_cpu32 (cdata->qh_virt->td_overlay.buffer_page[0]));
 
@@ -840,7 +840,7 @@ int
 xhci_setup_transfer (struct xhci *xhci)
 {
   (void)xhci;
-  //xhci_trace ("xhci_setup_transfer enter (TODO: implement)\n");
+  //xhci_dbg ("xhci_setup_transfer enter (TODO: implement)\n");
   /* pretend we managed to start sending data */
   return 0;
 
@@ -859,7 +859,7 @@ xhci_setup_transfer (struct xhci *xhci)
   if ((status & GRUB_XHCI_ST_HC_HALTED) != 0)
     /* XXX: Fix it: Currently we don't do anything to restart xHCI */
     {
-      xhci_trace ("setup_transfer: halted, status = 0x%x\n",
+      xhci_dbg ("setup_transfer: halted, status = 0x%x\n",
 		    status);
       return GRUB_USB_ERR_INTERNAL;
     }
@@ -868,7 +868,7 @@ xhci_setup_transfer (struct xhci *xhci)
        & (GRUB_XHCI_ST_AS_STATUS | GRUB_XHCI_ST_PS_STATUS)) == 0)
     /* XXX: Fix it: Currently we don't do anything to restart xHCI */
     {
-      xhci_trace ("setup_transfer: no AS/PS, status = 0x%x\n",
+      xhci_dbg ("setup_transfer: no AS/PS, status = 0x%x\n",
 		    status);
       return GRUB_USB_ERR_INTERNAL;
     }
@@ -883,7 +883,7 @@ xhci_setup_transfer (struct xhci *xhci)
   cdata->qh_virt = 0; //grub_xhci_find_qh (xhci, transfer);
   if (!cdata->qh_virt)
     {
-      xhci_trace ("setup_transfer: no QH\n");
+      xhci_dbg ("setup_transfer: no QH\n");
       xhci_free (cdata);
       return GRUB_USB_ERR_INTERNAL;
     }
@@ -893,7 +893,7 @@ xhci_setup_transfer (struct xhci *xhci)
   cdata->td_alt_virt = 0; //grub_xhci_alloc_td (xhci);
   if (!cdata->td_alt_virt)
     {
-      xhci_trace ("setup_transfer: no TDs\n");
+      xhci_dbg ("setup_transfer: no TDs\n");
       xhci_free (cdata);
       return GRUB_USB_ERR_INTERNAL;
     }
@@ -920,7 +920,7 @@ xhci_setup_transfer (struct xhci *xhci)
 	    grub_xhci_free_tds (xhci, cdata->td_first_virt, NULL, &actual);
 
 	  xhci_free (cdata);
-	  xhci_trace ("setup_transfer: no TD\n");
+	  xhci_dbg ("setup_transfer: no TD\n");
 	  return GRUB_USB_ERR_INTERNAL;
 	}
 
@@ -942,12 +942,12 @@ xhci_setup_transfer (struct xhci *xhci)
   /* Last TD should not have set alternate TD */
   cdata->td_last_virt->alt_next_td = grub_cpu_to_le32_compile_time (GRUB_XHCI_TERMINATE);
 
-  xhci_trace ("setup_transfer: cdata=%p, qh=%p\n",
+  xhci_dbg ("setup_transfer: cdata=%p, qh=%p\n",
 		cdata,cdata->qh_virt);
-  xhci_trace ("setup_transfer: td_first=%p, td_alt=%p\n",
+  xhci_dbg ("setup_transfer: td_first=%p, td_alt=%p\n",
 		cdata->td_first_virt,
 		cdata->td_alt_virt);
-  xhci_trace ("setup_transfer: td_last=%p\n",
+  xhci_dbg ("setup_transfer: td_last=%p\n",
 		cdata->td_last_virt);
 
   /* Start transfer: */
@@ -1437,7 +1437,7 @@ xhci_program_dcbaap(struct xhci *xhci)
 
   /* only 32-bit support */
   dcbaa_phys = xhci_dma_get_phys(xhci->dcbaa);
-  xhci_trace ("DCBAA at 0x%08x (virt 0x%08x), len=%d\n",
+  xhci_dbg ("DCBAA at 0x%08x (virt 0x%08x), len=%d\n",
       dcbaa_phys, xhci->dcbaa, xhci->dcbaa_len);
   /* DCBAAP lo+hi stores the _high order_ bits of the 64-bit address. The
    * reserved bits in "lo" are zero, so we can simply ignore them as our DCBAA
@@ -1479,7 +1479,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
 
   if (!xhci->num_scratch_bufs)
   {
-    xhci_trace("xHC needs %d scratchpad buffers\n", xhci->num_scratch_bufs);
+    xhci_dbg("xHC needs %d scratchpad buffers\n", xhci->num_scratch_bufs);
     return 0;
   }
 
@@ -1514,7 +1514,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
 
   /* Write Scratchpad Buffers Array base address to xHC */
   scratchpad_arr_phys = xhci_dma_get_phys(xhci->scratchpad_arr);
-  xhci_trace ("Scratchpad Buffer Array (nbuf=%d) at 0x%08x (virt 0x%08x), len=%d bytes\n",
+  xhci_dbg ("Scratchpad Buffer Array (nbuf=%d) at 0x%08x (virt 0x%08x), len=%d bytes\n",
       xhci->num_scratch_bufs, scratchpad_arr_phys, xhci->scratchpad_arr, xhci->scratchpad_arr_len);
    /* The location of the Scratcphad Buffer array is defined by entry 0 of the
     * DCBAA. We only support 32-bit.
@@ -1592,7 +1592,7 @@ xhci_setup_ring(struct xhci *xhci,
   int count = 1 << shift;
   int len = (count + 1 /* Link TRB */) * sizeof (ring->trbs[0]);
   (void)xhci;
-  //xhci_trace("%s: TODO: implement\n", __func__);
+  //xhci_dbg("%s: TODO: implement\n", __func__);
   ring->mask = count - 1;
   ring->shift = shift;
   ring->slot = slot;
