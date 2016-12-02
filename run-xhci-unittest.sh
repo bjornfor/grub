@@ -4,5 +4,5 @@
 # code for the tests.
 cd grub-core/bus/usb/ && \
   make -f build_xhci_test.mk && \
-  ./xhci_unittest && \
+  ./xhci_unittest; \
   echo $?
