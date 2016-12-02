@@ -1361,6 +1361,47 @@ int xhci_status(struct xhci *xhci, int verbose)
   return 0;
 }
 
+/**
+ * Determine alignment requirement for an xHCI data structure that must not
+ * cross a page boundary. Solved by rounding up to nearest power of 2 size.
+ *
+ * The only datastructure with alignment of more than 64 bytes is the
+ * scratchpad buffers, but they have only one size:
+ *
+ *   size = pagesize = alignment = boundary
+ */
+static size_t xhci_align (size_t size)
+{
+  const size_t min_align = 64;
+  size_t align;
+  int n;
+
+  if (size < min_align || size == 0)
+  {
+    align = min_align;
+  }
+  else
+  {
+    /* Align to own length rounded up to a power of two */
+    size -= 1;
+    n = 1;
+    while (size >>= 1)
+      n++;
+    align = 1 << n;
+  }
+
+  return align;
+}
+
+/*
+ * Allocate DMA memory while taking care of alignment and boundary
+ * requirements.
+ */
+static void *xhci_memalign(size_t size)
+{
+  return xhci_dma_alloc(xhci_align(size), size);
+}
+
 /** Allocate memory for xHC Device Context Base Address Array.
  *
  * Store a copy of the pointer in the struct xhci instance. The allocated
@@ -1370,8 +1411,6 @@ int xhci_status(struct xhci *xhci, int verbose)
 static int
 xhci_allocate_dcbaa(struct xhci *xhci)
 {
-  const int min_align = 64;
-
   if (xhci->dcbaa)
   {
     xhci_err ("dcbaa non-zero, possibly memory leak\n");
@@ -1380,7 +1419,7 @@ xhci_allocate_dcbaa(struct xhci *xhci)
 
   /* +1 to make room for the scratchpad pointer, at index 0 */
   xhci->dcbaa_len = (xhci->max_device_slots + 1) * sizeof (xhci->dcbaa[0]);
-  xhci->dcbaa = (uint64_t*)xhci_dma_alloc (min_align, xhci->dcbaa_len);
+  xhci->dcbaa = xhci_memalign(xhci->dcbaa_len);
   if (!xhci->dcbaa)
   {
     xhci_err ("out of memory, couldn't allocate DCBAA memory\n");
@@ -1430,8 +1469,6 @@ xhci_setup_dcbaa(struct xhci *xhci)
 static int
 xhci_setup_scratchpad(struct xhci *xhci)
 {
-  const int min_align = 64;
-  int min_align_sbufs;
   int i;
   size_t pagesize;
   uint32_t scratchpad_phys;
@@ -1452,9 +1489,8 @@ xhci_setup_scratchpad(struct xhci *xhci)
   pagesize = xhci_pagesize_to_bytes(
       mmio_read_bits(&xhci->oper_regs->pagesize, XHCI_OP_PAGESIZE));
   xhci->pagesize = pagesize;
-  min_align_sbufs = xhci->pagesize;
   xhci->scratchpads_len = xhci->num_scratch_bufs * xhci->pagesize;
-  xhci->scratchpads = (uint8_t*)xhci_dma_alloc (min_align_sbufs, xhci->scratchpads_len);
+  xhci->scratchpads = xhci_memalign(xhci->scratchpads_len);
   if (!xhci->scratchpads)
   {
     xhci_err ("out of memory, couldn't allocate Scratchpad Buffer memory\n");
@@ -1464,7 +1500,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
 
   /* Allocate Scratchpad Buffer Array, where each element points to a buffer */
   xhci->scratchpad_arr_len = xhci->num_scratch_bufs * sizeof (xhci->scratchpad_arr[0]);
-  xhci->scratchpad_arr = (uint64_t*)xhci_dma_alloc (min_align, xhci->scratchpad_arr_len);
+  xhci->scratchpad_arr = xhci_memalign(xhci->scratchpad_arr_len);
   if (!xhci->scratchpad_arr)
   {
     xhci_err ("out of memory, couldn't allocate Scratchpad Buffer Array memory\n");
@@ -1556,7 +1592,6 @@ xhci_setup_ring(struct xhci *xhci,
     unsigned int shift, unsigned int slot,
     unsigned int target, unsigned int stream)
 {
-  int min_align = 64*1024;
   int count = 1 << shift;
   int len = (count + 1 /* Link TRB */) * sizeof (ring->trbs[0]);
   (void)xhci;
@@ -1568,7 +1603,7 @@ xhci_setup_ring(struct xhci *xhci,
   ring->db_val = XHCI_DBVAL(target, stream);
 
   /* Allocate (physically contiguous) memory for the TRBs */
-  ring->trbs = (union xhci_trb *)xhci_dma_alloc (min_align, len);
+  ring->trbs = xhci_memalign(len);
 
   return -1;
 }
@@ -1592,12 +1627,11 @@ xhci_setup_event_ring(struct xhci *xhci)
   struct xhci_event_ring *event = &xhci->event_ring;
   unsigned int count;
   size_t len;
-  int min_align = 64;
 
   /* Allocate event ring */
   count = 1 << XHCI_EVENT_TRBS_LOG2;
   len = count * sizeof (event->trb[0]);
-  event->trb = (volatile union xhci_trb *)xhci_dma_alloc(min_align, len);
+  event->trb = xhci_memalign(len);
   if (!event->trb) {
     return -1;
   }
@@ -1608,8 +1642,7 @@ xhci_setup_event_ring(struct xhci *xhci)
   }
 
   /* Allocate event ring segment table */
-  event->segment = (struct xhci_event_ring_segment *)xhci_dma_alloc(
-      sizeof (event->segment[0]), sizeof (event->segment[0]));
+  event->segment = xhci_memalign(sizeof (event->segment[0]));
   if (!event->segment) {
     return -1;
   }
