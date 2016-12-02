@@ -18,6 +18,8 @@
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
+#define XHCI_PCI_SBRN_REG  0x60
+
 static grub_extcmd_t cmd_xhci_status;
 
 static unsigned int cur_xhci_id;
@@ -122,6 +124,7 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
   struct xhci *xhci;
   grub_uint32_t class_code;
   grub_uint32_t base;
+  grub_uint32_t release;
   volatile grub_uint32_t *mmio_base_addr;
   grub_uint32_t base_h;
   grub_pci_address_t addr;
@@ -131,6 +134,16 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
   class_code = grub_pci_read (addr) >> 8;
   if (class_code != 0x0c0330)
     return 0;
+
+  /* Check Serial Bus Release Number */
+  addr = grub_pci_make_address (dev, GRUB_XHCI_PCI_SBRN_REG);
+  release = grub_pci_read_byte (addr);
+  if (release != 0x30)
+  {
+    grub_dprintf ("xhci", "Wrong SBRN: 0x%0x (expected 0x%0x)\n",
+        release, 0x30);
+    return 0;
+  }
 
   dbg ("xhci: controller at %d:%02x.%d, vendor:device %04x:%04x\n",
       dev.bus, dev.device, dev.function,
