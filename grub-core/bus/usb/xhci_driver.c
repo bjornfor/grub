@@ -1,7 +1,7 @@
 /* Glue code to connect xHCI driver to GRUB */
 
 #include <grub/types.h> /* grub_uint32_t */
-#include <grub/pci.h> /* ? */
+#include <grub/pci.h> /* grub_pci_device_t */
 #include <grub/usb.h> /* grub_usb_controller_dev */
 #include <grub/mm.h> /* grub_zalloc */
 #include <grub/time.h> /* grub_millisleep */
@@ -14,7 +14,6 @@
 #include <grub/lib/arg.h> /* struct grub_arg_option */
 
 #include "xhci.h"
-//#include "xhci_io.h"
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
