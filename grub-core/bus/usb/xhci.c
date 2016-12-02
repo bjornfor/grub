@@ -344,30 +344,53 @@ static void xhci_doorbell_notify (struct xhci_trb_ring *ring)
   mmio_write32(ring->db_reg, ring->db_val);
 }
 
-/* Halt if xHCI HC not halted */
-int xhci_halt (struct xhci *xhci)
+/*
+ * Wait until value at address "addr" matches given bits value. Return 0 on
+ * error, >= 1 on success.
+ */
+static int xhci_handshake(volatile uint32_t *addr, enum bits32 bits,
+    uint32_t value, int timeout_ms)
 {
-  unsigned int is_halted;
-
-  is_halted = mmio_read_bits(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_HCH);
-  if (!is_halted)
-    {
-      xhci_trace ("xhci_halt not halted - halting now\n");
-      mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 0);
-      /* Spec says 16ms is enough */
-      for (int i=0; i<=16; i++)
-      {
-        if (mmio_read_bits(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_HCH))
-          return 0;
-        xhci_mdelay(1);
-      }
-      return -1;
-    }
-  else
+  while ((mmio_read_bits(addr, bits) != value && timeout_ms--))
   {
-    xhci_trace ("xhci_halt already halted\n");
+    xhci_mdelay(1);
   }
+  return timeout_ms;
+}
 
+static int
+xhci_wait_ready(struct xhci *xhci)
+{
+  xhci_dbg("Waiting for controller to be ready... ");
+  if (!xhci_handshake(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_CNR, 0, 100)) {
+    xhci_dbg("timeout (100ms)!\n");
+    return -1;
+  }
+  xhci_dbg("ok.\n");
+  return 0;
+}
+
+static int
+xhci_start (struct xhci *xhci)
+{
+  mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 1);
+  if (!xhci_handshake(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_HCH, 0, 1000))
+  {
+    xhci_dbg("Controller didn't start within 1s\n");
+    return -1;
+  }
+  return 0;
+}
+
+static int
+xhci_stop (struct xhci *xhci)
+{
+  mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 0);
+  if (!xhci_handshake(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_HCH, 1, 1000))
+  {
+    xhci_dbg("Controller didn't stop within 1s\n");
+    return -1;
+  }
   return 0;
 }
 
@@ -375,22 +398,17 @@ int xhci_halt (struct xhci *xhci)
 static int
 xhci_reset (struct xhci *xhci)
 {
-  xhci_trace ("xhci_reset enter\n");
-
-  //sync_all_caches (xhci);
-
   mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_HCRST, 1);
-  /* XXX: How long time could take reset of HC ? */
-  for (int i=0; i<=1000; i++)
+  if (!xhci_handshake(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_HCRST, 1, 1000))
   {
-    if (mmio_read_bits (&xhci->oper_regs->usbsts, XHCI_OP_USBCMD_HCRST))
-      return 0;
-    xhci_mdelay(1);
+    return -1;
   }
-
-  return -1;
+  return 0;
 }
 
+/* Start the xHC by setting the RUN bit and wait for the controller to
+ * acknowledge.
+ */
 static void
 xhci_run (struct xhci *xhci)
 {
@@ -1621,7 +1639,7 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
   (void)seqno;
   int ac64;
   int rc;
-  struct xhci *xhci;
+  struct xhci *xhci = NULL;
   int32_t hcsparams1;
   //uint32_t hcsparams2;
   //uint32_t hccparams1;
@@ -1651,12 +1669,8 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
     ((uint8_t *)xhci->cap_regs +
      DBOFF_TO_BYTES(mmio_read_bits (&xhci->cap_regs->dboff, XHCI_CAP_DBOFF)));
 
-  /* Paranoia/sanity check: wait until controller is ready? */
-  if ((mmio_read_bits(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_CNR)) == 1)
-  {
-    xhci_err ("Controller not ready\n");
+  if (xhci_wait_ready(xhci))
     return NULL;
-  }
 
   /* Get some structural info */
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
@@ -1684,6 +1698,15 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
 
   /* Interrupts is not supported by this driver, so skipped */
 
+  /* TODO: Take ownership of controller from BIOS, if supported */
+
+  xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
+      xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
+  ac64 = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_AC64);
+  xhci_dbg("XHCI-%s: scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
+      xhci->name, xhci->num_scratch_bufs, xhci->scratchpad_arr,
+      xhci->pagesize, ac64);
+
   /* Start the controller so that it accepts dorbell notifications.
    * We can run commands and the root hub ports will begin reporting device
    * connects etc.
@@ -1695,8 +1718,9 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
    * SS ports automatically advance to the Enabled state if a successful device
    * attach is detected.
    */
-  mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_RUNSTOP, 1);
+  xhci_start(xhci);
 
+  /* DEBUG */
   (void)rc;
   rc = xhci_nop(xhci);
   xhci_printf("xhci_nop returned %d\n", rc);
@@ -1707,37 +1731,14 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
     xhci_dump_oper(xhci);
   }
 
-  /* Determine and change ownership. */
-
-  /* TODO: Take ownership of controller from BIOS, if supported */
-
-  xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
-      xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
-  ac64 = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_AC64);
-  xhci_dbg("XHCI-%s: scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
-      xhci->name, xhci->num_scratch_bufs, xhci->scratchpad_arr,
-      xhci->pagesize, ac64);
-
-  return xhci;
-
-//fail:
-//  if (xhci)
-//    {
-////      if (xhci->td_chunk)
-////	grub_dma_free ((void *) xhci->td_chunk);
-////      if (xhci->qh_chunk)
-////	grub_dma_free ((void *) xhci->qh_chunk);
-////      if (xhci->framelist_chunk)
-////	grub_dma_free (xhci->framelist_chunk);
-//    }
-  xhci_free (xhci);
   return xhci;
 }
 
 void xhci_destroy (struct xhci *xhci)
 {
-  xhci_halt (xhci);
+  xhci_stop (xhci);
   xhci_reset (xhci);
+  /* TODO: free sub-datastructures from xhci first */
   xhci_free (xhci);
 }
 
