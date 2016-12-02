@@ -42,7 +42,7 @@ int xhci_printf (const char *fmt, ...)
   int ret;
 
   va_start (ap, fmt);
-  ret = printf (fmt, ap);
+  ret = vprintf (fmt, ap);
   va_end (ap);
 
   return ret;
