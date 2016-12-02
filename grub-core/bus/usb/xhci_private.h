@@ -6,7 +6,9 @@
 
 #define COMPILE_TIME_ASSERT(cond) switch (0) { case 1: case !(cond): ; }
 
-/* Where is the standard "offsetof" macro */
+/*
+ * For build environments that lack the standard "offsetof" macro (e.g. GRUB)
+ */
 #define OFFSETOF(T, m) \
   ((size_t) (((uint8_t *) &(((T*)NULL)->m)) - ((uint8_t *) ((T*) NULL))))
 
@@ -18,10 +20,15 @@
  * more maintainable/readable.
  */
 
-/** For initializing enum bits values with start and end bit positions. */
+/**
+ * For initializing enum bits values with start and end bit positions
+ * (inclusive).
+ */
 #define BITS(start, end) ((start << 16) | (end - start + 1))
 
-/** Obtain bitmask from BITS definition (only works for single bit masks) */
+/**
+ * Obtain bitmask from BITS definition (only works for single bit masks).
+ */
 #define BIT(bits_value) (1 << (bits_value >> 16))
 
 enum bits32
