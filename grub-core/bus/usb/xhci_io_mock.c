@@ -64,7 +64,6 @@ xhci_snprintf (char *str, size_t n, const char *fmt, ...)
 int
 xhci_vprintf (const char *fmt, va_list ap)
 {
-  printf("vprintf called\n");
   return vprintf (fmt, ap);
 }
 
