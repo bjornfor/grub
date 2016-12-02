@@ -102,8 +102,7 @@ do_cmd_xhci_status (grub_extcmd_context_t ctxt, int argc, char *argv[])
 
   struct grub_arg_list *state = ctxt->state;
  
-  if (state[0].set)
-    verbose = 1;
+  verbose = state[0].set;
 
   for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
     xhci_status(xhci, verbose);
