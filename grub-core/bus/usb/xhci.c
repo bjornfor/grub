@@ -69,7 +69,7 @@ mmio_read_bits(const volatile uint32_t *addr, const enum bits32 bits)
 {
   uint32_t regval;
 
-  regval = le_to_cpu32 (mmio_read32(addr));
+  regval = mmio_read32(addr);
   return parse_reg(regval, bits);
 }
 
