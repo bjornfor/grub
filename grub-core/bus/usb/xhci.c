@@ -1659,6 +1659,7 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
   xhci->max_device_slots = parse_reg(hcsparams1, XHCI_CAP_HCSPARAMS1_MAX_DEVICE_SLOTS);
   xhci->max_ports = parse_reg(hcsparams1, XHCI_CAP_HCSPARAMS1_MAX_PORTS);
+  xhci_printf("max_ports=%d\n", xhci->max_ports);
 
   /* Enable all slots */
   xhci->num_enabled_slots = xhci->max_device_slots;
