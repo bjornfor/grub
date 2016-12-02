@@ -136,7 +136,7 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
     return 0;
 
   /* Check Serial Bus Release Number */
-  addr = grub_pci_make_address (dev, GRUB_XHCI_PCI_SBRN_REG);
+  addr = grub_pci_make_address (dev, XHCI_PCI_SBRN_REG);
   release = grub_pci_read_byte (addr);
   if (release != 0x30)
   {
