@@ -1726,7 +1726,7 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
 
   /* TODO: Take ownership of controller from BIOS, if supported */
 
-  xhci_dbg("XHCI-%s: REGS: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
+  xhci_dbg("XHCI-%s: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
       xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
   xhci->ac64 = mmio_read_bits(&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_AC64);
   xhci_dbg("XHCI-%s: scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
