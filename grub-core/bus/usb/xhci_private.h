@@ -1,6 +1,9 @@
 #ifndef XHCI_PRIVATE_H
 #define XHCI_PRIVATE_H
 
+#include <stdint.h> /* uint32_t */
+#include <stddef.h> /* size_t */
+
 #define COMPILE_TIME_ASSERT(cond) switch (0) { case 1: case !(cond): ; }
 
 /* Where is the standard "offsetof" macro */
