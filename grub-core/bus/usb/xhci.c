@@ -158,7 +158,7 @@ static uint32_t xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci
     return 0;
   }
 
-  addr = (uint8_t*)xhci->oper_regs + 0x400 + (0x10 * (port - 1)) + type;
+  addr = (uint8_t*)xhci->oper_regs + 0x400 + (0x10 * (port - 0)) + type;
   return mmio_read32 ((uint32_t *)addr);
 }
 
