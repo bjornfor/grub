@@ -360,12 +360,10 @@ static int xhci_handshake(volatile uint32_t *addr, enum bits32 bits,
 static int
 xhci_wait_ready(struct xhci *xhci)
 {
-  xhci_dbg("Waiting for controller to be ready... ");
   if (!xhci_handshake(&xhci->oper_regs->usbsts, XHCI_OP_USBSTS_CNR, 0, 100)) {
-    xhci_dbg("timeout (100ms)!\n");
+    xhci_dbg("controller not ready timeout (100ms)!\n");
     return -1;
   }
-  xhci_dbg("ok.\n");
   return 0;
 }
 

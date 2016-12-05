@@ -201,8 +201,6 @@ xhci_fini_hw (int noreturn __attribute__ ((unused)))
   struct xhci *xhci;
   int iter;
 
-  dbg ("grub_xhci_fini_hw enter\n");
-
   /* We should disable all xHCI HW to prevent any DMA access etc. */
   for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
     xhci_destroy(xhci);
@@ -379,7 +377,7 @@ GRUB_MOD_INIT (xhci)
   grub_boot_time ("Registering xHCI driver");
   grub_usb_controller_dev_register (&usb_controller_dev);
   grub_boot_time ("xHCI driver registered");
-  dbg ("xHCI driver is registered, register preboot hook\n");
+  //dbg ("xHCI driver is registered, register preboot hook\n");
   grub_loader_register_preboot_hook (xhci_fini_hw, xhci_restore_hw,
 				     GRUB_LOADER_PREBOOT_HOOK_PRIO_DISK);
 
@@ -388,7 +386,7 @@ GRUB_MOD_INIT (xhci)
         N_("[-v|--verbose]"),
         N_("Print xHCI driver status."),
         cmd_options);
-  dbg ("GRUB_MOD_INIT completed\n");
+  //dbg ("GRUB_MOD_INIT completed\n");
 }
 
 GRUB_MOD_FINI (xhci)
