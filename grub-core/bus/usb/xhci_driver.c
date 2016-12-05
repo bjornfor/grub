@@ -211,10 +211,6 @@ xhci_fini_hw (int noreturn __attribute__ ((unused)))
 static grub_err_t
 xhci_restore_hw (void)
 {
-  //struct xhci *xhci;
-  //grub_uint32_t n_ports;
-  //int i;
-
   dbg("grub_xhci_restore_hw enter\n");
   /* We should re-enable all xHCI HW similarly as on inithw */
 //  for (xhci = xhci_list; xhci; xhci = xhci->next)
