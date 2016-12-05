@@ -210,13 +210,14 @@ enum bits32
   XHCI_TRB_CTRL__C = BITS(0, 0),
 
   /* Normal TRB (Bulk and Interrupt transfer) */
-  XHCI_TRB_CTRL__BEI = BITS(9, 9),
-  XHCI_TRB_CTRL__IDT = BITS(6, 6),
-  XHCI_TRB_CTRL__IOC = BITS(5, 5),
-  XHCI_TRB_CTRL__CH  = BITS(4, 4),
-  XHCI_TRB_CTRL__NS  = BITS(3, 3),
-  XHCI_TRB_CTRL__ISP = BITS(2, 2),
   XHCI_TRB_CTRL__ENT = BITS(1, 1),
+  XHCI_TRB_CTRL__ISP = BITS(2, 2),
+  XHCI_TRB_CTRL__NS  = BITS(3, 3),
+  XHCI_TRB_CTRL__CH  = BITS(4, 4),
+  XHCI_TRB_CTRL__IOC = BITS(5, 5),
+  XHCI_TRB_CTRL__IDT = BITS(6, 6),
+  /* bit 7:8 is RsvdZ */
+  XHCI_TRB_CTRL__BEI = BITS(9, 9),
 
   /*
    * TRB status word bits. These bits apply to the 2nd word (of 4) in a TRB.
