@@ -331,6 +331,446 @@ static int xhci_dump_cap(struct xhci *xhci)
   return 0;
 }
 
+/**
+ * Dequeue a transfer request block
+ *
+ * @v ring		TRB ring
+ * @ret iobuf		I/O buffer
+ */
+static void
+xhci_dequeue (struct xhci_trb_ring *ring)
+{
+  volatile union xhci_trb *trb;
+  unsigned int cons;
+  unsigned int mask;
+  unsigned int index;
+
+  /* Sanity check */
+  //assert ( xhci_ring_fill ( ring ) != 0 );
+
+  /* Update consumer counter */
+  cons = ring->cons++;
+  mask = ring->mask;
+  index = cons & mask;
+
+  /* Retrieve TRB */
+  trb = &ring->trbs[index];
+  /* TODO: now what? */
+  (void)trb;
+}
+
+/**
+ * Handle command completion event
+ *
+ * @v xhci		xHCI device
+ * @v trb		Command completion event
+ */
+static void
+xhci_complete (struct xhci *xhci, volatile struct xhci_trb_complete *trb)
+{
+  int rc;
+
+  /* Ignore "command ring stopped" notifications */
+  if ( trb->code == XHCI_CMPLT_CMD_STOPPED ) {
+    xhci_dbg("command ring stopped\n");
+    return;
+  }
+
+  /* Ignore unexpected completions */
+  if ( ! xhci->pending ) {
+    rc = -1;
+    xhci_dbg("unexpected completion (code %d): %d\n",
+        trb->code, rc);
+    return;
+  }
+
+  /* Dequeue command TRB */
+  xhci_dequeue ( &xhci->command_ring );
+
+  /* Sanity check */
+  //assert ( xhci_ring_consumed ( &xhci->command_ring ) ==
+      //le64_to_cpu ( trb->command ) );
+
+  /* Record completion */
+  *trb = xhci->pending->complete;
+
+  xhci->pending = NULL;
+}
+
+/**
+ * Handle port status event
+ *
+ * @v xhci		xHCI device
+ * @v trb		Port status event
+ */
+static void xhci_port_status ( struct xhci *xhci,
+			       volatile struct xhci_trb_port_status *trb )
+{
+  int port = trb->port;
+  //uint32_t portsc;
+
+  /* Sanity check */
+  //assert ( ( trb->port > 0 ) && ( trb->port <= xhci->ports ) );
+
+  xhci_dbg("Port Status Change Event for port %d: ", port);
+  /* Record disconnections and clear changes */
+  //portsc = xhci_read_portrs (xhci, port, PORTSC);
+  xhci_dump_oper_portsc(xhci, port);
+  xhci_dbg("\n");
+  //port->disconnected |= ( portsc & XHCI_PORTSC_CSC );
+  //portsc &= ( XHCI_PORTSC_PRESERVE | XHCI_PORTSC_CHANGE );
+  //xhci_write_portrs (xhci, port, PORTSC, portsc);
+
+  /* Report port status change */
+  //usb_port_changed ( port );
+}
+
+/**
+ * Handle host controller event
+ *
+ * @v xhci		xHCI device
+ * @v trb		Host controller event
+ */
+static void xhci_host_controller ( struct xhci *xhci,
+				   volatile struct xhci_trb_host_controller *trb )
+{
+  int rc;
+  (void)xhci;
+
+  /* Construct error */
+  rc = -1;
+  xhci_dbg("XHCI host controller event (code %d): %d\n",
+      trb->code, rc);
+}
+
+/**
+ * Poll event ring
+ *
+ * @v xhci		xHCI device
+ */
+static void
+xhci_event_poll (struct xhci *xhci)
+{
+  struct xhci_event_ring *event = &xhci->event_ring;
+  volatile union xhci_trb *trb;
+  unsigned int shift = XHCI_EVENT_TRBS_LOG2;
+  unsigned int count = ( 1 << shift );
+  unsigned int mask = ( count - 1 );
+  unsigned int consumed;
+  unsigned int type;
+
+  /* Poll for events */
+  for ( consumed = 0 ; ; consumed++ ) {
+
+    /* Stop if we reach an empty TRB */
+    //rmb();
+    trb = &event->trb[ event->cons & mask ];
+    if ( ! ( ( trb->common.flags ^
+            ( event->cons >> shift ) ) & XHCI_TRB_C ) )
+      break;
+
+    /* Handle TRB */
+    type = parse_reg(trb->templ.control, XHCI_TRB_CTRL__TRB_TYPE);
+    xhci_dbg("processing event type %d\n", type);
+    switch (type)
+    {
+      case XHCI_TRB_TYPE_TRANSFER_EVENT:
+        //xhci_transfer(xhci, &trb->transfer);
+        break;
+
+      case XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT:
+        xhci_complete(xhci, &trb->complete);
+        break;
+
+      case XHCI_TRB_TYPE_PORT_STATUS_CHANGE_EVENT:
+        xhci_port_status(xhci, &trb->port);
+        break;
+
+      case XHCI_TRB_TYPE_HOST_CONTROLLER_EVENT:
+        xhci_host_controller(xhci, &trb->host);
+        break;
+
+      default:
+        xhci_dbg("unrecognised event 0x%x\n:", event->cons );
+        break;
+    }
+
+    //xhci_dbg("event->cons: %d\n", event->cons);
+
+    /* Consume this TRB */
+    event->cons++;
+  }
+
+  /* Update dequeue pointer if applicable */
+  if (consumed) {
+    // TODO
+    //mmio_write32(&xhci->run_regs->, grub_dma_virt2phys(trb));
+        //xhci->run + XHCI_RUN_ERDP ( 0 ) );
+  }
+}
+
+/**
+ * Calculate space used in TRB ring
+ *
+ * @v ring		TRB ring
+ * @ret fill		Number of entries used
+ */
+static unsigned int
+xhci_ring_fill(struct xhci_trb_ring *ring)
+{
+  return ring->prod - ring->cons;
+}
+
+/**
+ * Calculate space remaining in TRB ring
+ *
+ * @v ring		TRB ring
+ * @ret remaining	Number of entries remaining
+ *
+ * xHCI does not allow us to completely fill a ring; there must be at
+ * least one free entry (excluding the Link TRB).
+ */
+static unsigned int
+xhci_ring_remaining ( struct xhci_trb_ring *ring )
+{
+  unsigned int fill = xhci_ring_fill(ring);
+
+  /* We choose to utilise rings with ( 2^n + 1 ) entries, with
+   * the final entry being a Link TRB.  The maximum fill level
+   * is therefore
+   *
+   *   ( ( 2^n + 1 ) - 1 (Link TRB) - 1 (one slot always empty)
+   *       == ( 2^n - 1 )
+   *
+   * which is therefore equal to the ring mask.
+   */
+  xhci_dbg("xhci_ring_remaining: mask=%d fill=%d\n",
+      ring->mask, fill);
+  return ring->mask - fill;
+}
+
+/**
+ * Enqueue a transfer request block
+ *
+ * @v ring		TRB ring
+ * @v iobuf		I/O buffer (if any)
+ * @v trb		Transfer request block (with empty Cycle flag)
+ * @ret rc		Return status code
+ *
+ * This operation does not implicitly ring the doorbell register.
+ */
+static int
+xhci_enqueue(struct xhci_trb_ring *ring, /* struct io_buffer *iobuf, */
+    const volatile union xhci_trb *trb)
+{
+  volatile union xhci_trb *dest;
+  unsigned int prod;
+  unsigned int mask;
+  unsigned int index;
+  unsigned int cycle;
+
+  /* Sanity check */
+  //assert ( ! ( trb->common.flags & XHCI_TRB_C ) );
+
+  /* Fail if ring is full */
+  if (!xhci_ring_remaining(ring))
+    return -1;
+
+  /* Update producer counter (and link TRB, if applicable) */
+  prod = ring->prod++;
+  mask = ring->mask;
+  cycle = ( ( ~( prod >> ring->shift ) ) & XHCI_TRB_C );
+  index = ( prod & mask );
+  /* TODO: */
+  //if ( index == 0 )
+  //  ring->link->flags = ( XHCI_TRB_TC | ( cycle ^ XHCI_TRB_C ) );
+
+  /* Record I/O buffer */
+  //ring->iobuf[index] = iobuf;
+
+  /* Enqueue TRB */
+  dest = &ring->trbs[index];
+  dest->templ.parameter = trb->templ.parameter;
+  dest->templ.status = trb->templ.status;
+  //TODO: write barrier
+  dest->templ.control = ( trb->templ.control |
+      cpu_to_le32 ( cycle ) );
+
+  return 0;
+}
+
+static void xhci_doorbell_notify (struct xhci_trb_ring *ring)
+{
+  // TODO: write barrier
+  mmio_write32(ring->db_reg, ring->db_val);
+}
+
+/**
+ * Issue command and wait for completion
+ *
+ * @v xhci		xHCI device
+ * @v trb		Transfer request block (with empty Cycle flag)
+ * @ret rc		Return status code
+ *
+ * On a successful completion, the TRB will be overwritten with the
+ * completion.
+ */
+static int
+xhci_command(struct xhci *xhci, union xhci_trb *trb)
+{
+  struct xhci_trb_complete *complete = &trb->complete;
+  unsigned int i;
+  int rc;
+
+  /* Record the pending command */
+  xhci->pending = trb;
+
+  /* Enqueue the command */
+  rc = xhci_enqueue(&xhci->command_ring, /*NULL,*/ trb);
+  if (rc != 0) {
+    xhci_dbg("xhci_enqueue failed\n");
+    goto err_enqueue;
+  }
+
+  /* Ring the command doorbell */
+  xhci_doorbell_notify(&xhci->command_ring);
+
+  /* Wait for the command to complete */
+  for (i = 0; i < XHCI_COMMAND_MAX_WAIT_MS; i++) {
+
+    /* Poll event ring */
+    xhci_event_poll(xhci);
+
+    /* Check for completion */
+    if (!xhci->pending) {
+      if (complete->code != XHCI_CMPLT_SUCCESS) {
+        rc = -1;
+        xhci_dbg("command failed, completion code %d\n",
+            complete->code, rc);
+        return rc;
+      }
+      return 0;
+    }
+
+    /* Delay */
+    xhci_mdelay (1);
+  }
+
+  /* Timeout */
+  xhci_dbg("timed out waiting for completion\n");
+  rc = -1;
+
+  /* Abort command */
+  //xhci_abort(xhci);
+
+err_enqueue:
+  xhci->pending = NULL;
+  return rc;
+}
+
+/** Transfer request block interrupt on completion flag */
+#define XHCI_TRB_IOC 0x20
+
+/**
+ * Issue NOP and wait for completion
+ *
+ * @v xhci		xHCI device
+ * @ret rc		Return status code
+ */
+int xhci_nop(struct xhci *xhci)
+{
+  union xhci_trb trb;
+  struct xhci_trb_common *nop = &trb.common;
+  int rc;
+
+  /* Construct command */
+  xhci_memset(nop, 0, sizeof (*nop));
+  nop->flags = XHCI_TRB_IOC;
+  nop->type = XHCI_TRB_TYPE_NO_OP_COMMAND;
+
+  /* Issue command and wait for completion */
+  rc = xhci_command(xhci, &trb);
+  if (rc != 0)
+    return rc;
+
+  return 0;
+}
+
+int xhci_status(struct xhci *xhci, int verbose)
+{
+  uint32_t portsc;
+
+  /* Print connected ports */
+  xhci_printf("XHCI-%s cap=0x%08x PORTSC(n):", xhci->name, xhci->cap_regs);
+  for (int port=0; port<xhci->max_ports; port++)
+  {
+    portsc = xhci_read_portrs (xhci, port, PORTSC);
+    if (parse_reg(portsc, XHCI_OP_PORTSC_CCS))
+    {
+      xhci_printf(" %d", port);
+    }
+  }
+  xhci_printf("\n");
+
+  if (verbose)
+  {
+    /* Full dump of PORTSC regs */
+    for (int i=0; i<xhci->max_ports; i++)
+    {
+      xhci_dump_oper_portsc(xhci, i);
+      xhci_printf ("\n");
+    }
+  }
+
+  return 0;
+}
+
+/**
+ * Determine alignment requirement for an xHCI data structure that must not
+ * cross a page boundary. Solved by rounding up to nearest power of 2 size.
+ *
+ * The only datastructure with alignment of more than 64 bytes is the
+ * scratchpad buffers, but they have only one size:
+ *
+ *   size = pagesize = alignment = boundary
+ */
+static size_t xhci_align (size_t size)
+{
+  const size_t min_align = 64;
+  size_t align;
+  int n;
+
+  if (size < min_align || size == 0)
+  {
+    align = min_align;
+  }
+  else
+  {
+    /* Align to own length rounded up to a power of two */
+    size -= 1;
+    n = 1;
+    while (size >>= 1)
+      n++;
+    align = 1 << n;
+  }
+
+  return align;
+}
+
+/*
+ * Allocate DMA memory while taking care of alignment and boundary
+ * requirements.
+ */
+static void *xhci_memalign(size_t size)
+{
+  void *ptr;
+  ptr = xhci_dma_alloc(xhci_align(size), size);
+  if (!ptr)
+    xhci_err("xhci: out of memory (failed to allocate %d bytes)\n", size);
+
+  return ptr;
+}
+
 #if 0
 /**
  * Transcribe port speed (for debugging)
@@ -356,12 +796,6 @@ xhci_speed_name (uint32_t psi)
   return buf;
 }
 #endif
-
-static void xhci_doorbell_notify (struct xhci_trb_ring *ring)
-{
-  // TODO: write barrier
-  mmio_write32(ring->db_reg, ring->db_val);
-}
 
 /*
  * Wait until value at address "addr" matches given bits value. Return 0 on
@@ -602,6 +1036,8 @@ xhci_detect_dev (struct xhci *xhci, int port, int *changed)
   (void)line_state;
   (void)status;
   uint32_t portsc;
+
+  xhci_event_poll (xhci);
 
   //xhci_dbg ("xhci_detect_dev port=%d\n", port);
   portsc = xhci_read_portrs (xhci, port, PORTSC);
@@ -981,440 +1417,6 @@ xhci_setup_transfer (struct xhci *xhci)
 #endif
   //return GRUB_USB_ERR_TIMEOUT;
   return 0;
-}
-
-
-/**
- * Dequeue a transfer request block
- *
- * @v ring		TRB ring
- * @ret iobuf		I/O buffer
- */
-static void
-xhci_dequeue (struct xhci_trb_ring *ring)
-{
-  volatile union xhci_trb *trb;
-  unsigned int cons;
-  unsigned int mask;
-  unsigned int index;
-
-  /* Sanity check */
-  //assert ( xhci_ring_fill ( ring ) != 0 );
-
-  /* Update consumer counter */
-  cons = ring->cons++;
-  mask = ring->mask;
-  index = cons & mask;
-
-  /* Retrieve TRB */
-  trb = &ring->trbs[index];
-  /* TODO: now what? */
-  (void)trb;
-}
-
-/**
- * Handle command completion event
- *
- * @v xhci		xHCI device
- * @v trb		Command completion event
- */
-static void
-xhci_complete (struct xhci *xhci, volatile struct xhci_trb_complete *trb)
-{
-  int rc;
-
-  /* Ignore "command ring stopped" notifications */
-  if ( trb->code == XHCI_CMPLT_CMD_STOPPED ) {
-    xhci_dbg("command ring stopped\n");
-    return;
-  }
-
-  /* Ignore unexpected completions */
-  if ( ! xhci->pending ) {
-    rc = -1;
-    xhci_dbg("unexpected completion (code %d): %d\n",
-        trb->code, rc);
-    return;
-  }
-
-  /* Dequeue command TRB */
-  xhci_dequeue ( &xhci->command_ring );
-
-  /* Sanity check */
-  //assert ( xhci_ring_consumed ( &xhci->command_ring ) ==
-      //le64_to_cpu ( trb->command ) );
-
-  /* Record completion */
-  *trb = xhci->pending->complete;
-
-  xhci->pending = NULL;
-}
-
-#if 0
-/**
- * Handle port status event
- *
- * @v xhci		xHCI device
- * @v trb		Port status event
- */
-static void xhci_port_status ( struct xhci *xhci,
-			       struct xhci_trb_port_status *trb )
-{
-  struct usb_port *port = usb_port ( xhci->bus->hub, trb->port );
-  uint32_t portsc;
-
-  /* Sanity check */
-  assert ( ( trb->port > 0 ) && ( trb->port <= xhci->ports ) );
-
-  /* Record disconnections and clear changes */
-  portsc = readl ( xhci->op + XHCI_OP_PORTSC ( trb->port ) );
-  port->disconnected |= ( portsc & XHCI_PORTSC_CSC );
-  portsc &= ( XHCI_PORTSC_PRESERVE | XHCI_PORTSC_CHANGE );
-  writel ( portsc, xhci->op + XHCI_OP_PORTSC ( trb->port ) );
-
-  /* Report port status change */
-  usb_port_changed ( port );
-}
-#endif
-
-/**
- * Handle host controller event
- *
- * @v xhci		xHCI device
- * @v trb		Host controller event
- */
-static void xhci_host_controller ( struct xhci *xhci,
-				   volatile struct xhci_trb_host_controller *trb )
-{
-  int rc;
-  (void)xhci;
-
-  /* Construct error */
-  rc = -1;
-  xhci_dbg("XHCI host controller event (code %d): %d\n",
-      trb->code, rc);
-}
-
-/**
- * Poll event ring
- *
- * @v xhci		xHCI device
- */
-static void
-xhci_event_poll (struct xhci *xhci)
-{
-  struct xhci_event_ring *event = &xhci->event_ring;
-  volatile union xhci_trb *trb;
-  unsigned int shift = XHCI_EVENT_TRBS_LOG2;
-  unsigned int count = ( 1 << shift );
-  unsigned int mask = ( count - 1 );
-  unsigned int consumed;
-  unsigned int type;
-
-  /* Poll for events */
-  for ( consumed = 0 ; ; consumed++ ) {
-
-    /* Stop if we reach an empty TRB */
-    //rmb();
-    trb = &event->trb[ event->cons & mask ];
-    if ( ! ( ( trb->common.flags ^
-            ( event->cons >> shift ) ) & XHCI_TRB_C ) )
-      break;
-
-    /* Handle TRB */
-    type = parse_reg(trb->templ.control, XHCI_TRB_CTRL__TRB_TYPE);
-    xhci_dbg("processing event type %d\n", type);
-    switch (type)
-    {
-      case XHCI_TRB_TYPE_TRANSFER_EVENT:
-        //xhci_transfer(xhci, &trb->transfer);
-        break;
-
-      case XHCI_TRB_TYPE_COMMAND_COMPLETION_EVENT:
-        xhci_complete(xhci, &trb->complete);
-        break;
-
-      case XHCI_TRB_TYPE_PORT_STATUS_CHANGE_EVENT:
-        //xhci_port_status(xhci, &trb->port);
-        break;
-
-      case XHCI_TRB_TYPE_HOST_CONTROLLER_EVENT:
-        xhci_host_controller(xhci, &trb->host);
-        break;
-
-      default:
-        xhci_dbg("unrecognised event 0x%x\n:", event->cons );
-        break;
-    }
-
-    xhci_dbg("event->cons: %d\n", event->cons);
-
-    /* Consume this TRB */
-    event->cons++;
-  }
-
-  /* Update dequeue pointer if applicable */
-  if (consumed) {
-    // TODO
-    //mmio_write32(&xhci->run_regs->, grub_dma_virt2phys(trb));
-        //xhci->run + XHCI_RUN_ERDP ( 0 ) );
-  }
-}
-
-/**
- * Calculate space used in TRB ring
- *
- * @v ring		TRB ring
- * @ret fill		Number of entries used
- */
-static unsigned int
-xhci_ring_fill(struct xhci_trb_ring *ring)
-{
-  return ring->prod - ring->cons;
-}
-
-/**
- * Calculate space remaining in TRB ring
- *
- * @v ring		TRB ring
- * @ret remaining	Number of entries remaining
- *
- * xHCI does not allow us to completely fill a ring; there must be at
- * least one free entry (excluding the Link TRB).
- */
-static unsigned int
-xhci_ring_remaining ( struct xhci_trb_ring *ring )
-{
-  unsigned int fill = xhci_ring_fill(ring);
-
-  /* We choose to utilise rings with ( 2^n + 1 ) entries, with
-   * the final entry being a Link TRB.  The maximum fill level
-   * is therefore
-   *
-   *   ( ( 2^n + 1 ) - 1 (Link TRB) - 1 (one slot always empty)
-   *       == ( 2^n - 1 )
-   *
-   * which is therefore equal to the ring mask.
-   */
-  xhci_dbg("xhci_ring_remaining: mask=%d fill=%d\n",
-      ring->mask, fill);
-  return ring->mask - fill;
-}
-
-/**
- * Enqueue a transfer request block
- *
- * @v ring		TRB ring
- * @v iobuf		I/O buffer (if any)
- * @v trb		Transfer request block (with empty Cycle flag)
- * @ret rc		Return status code
- *
- * This operation does not implicitly ring the doorbell register.
- */
-static int
-xhci_enqueue(struct xhci_trb_ring *ring, /* struct io_buffer *iobuf, */
-    const volatile union xhci_trb *trb)
-{
-  volatile union xhci_trb *dest;
-  unsigned int prod;
-  unsigned int mask;
-  unsigned int index;
-  unsigned int cycle;
-
-  /* Sanity check */
-  //assert ( ! ( trb->common.flags & XHCI_TRB_C ) );
-
-  /* Fail if ring is full */
-  if (!xhci_ring_remaining(ring))
-    return -1;
-
-  /* Update producer counter (and link TRB, if applicable) */
-  prod = ring->prod++;
-  mask = ring->mask;
-  cycle = ( ( ~( prod >> ring->shift ) ) & XHCI_TRB_C );
-  index = ( prod & mask );
-  /* TODO: */
-  //if ( index == 0 )
-  //  ring->link->flags = ( XHCI_TRB_TC | ( cycle ^ XHCI_TRB_C ) );
-
-  /* Record I/O buffer */
-  //ring->iobuf[index] = iobuf;
-
-  /* Enqueue TRB */
-  dest = &ring->trbs[index];
-  dest->templ.parameter = trb->templ.parameter;
-  dest->templ.status = trb->templ.status;
-  //TODO: write barrier
-  dest->templ.control = ( trb->templ.control |
-      cpu_to_le32 ( cycle ) );
-
-  return 0;
-}
-
-/**
- * Issue command and wait for completion
- *
- * @v xhci		xHCI device
- * @v trb		Transfer request block (with empty Cycle flag)
- * @ret rc		Return status code
- *
- * On a successful completion, the TRB will be overwritten with the
- * completion.
- */
-static int
-xhci_command(struct xhci *xhci, union xhci_trb *trb)
-{
-  struct xhci_trb_complete *complete = &trb->complete;
-  unsigned int i;
-  int rc;
-
-  /* Record the pending command */
-  xhci->pending = trb;
-
-  /* Enqueue the command */
-  rc = xhci_enqueue(&xhci->command_ring, /*NULL,*/ trb);
-  if (rc != 0) {
-    xhci_dbg("xhci_enqueue failed\n");
-    goto err_enqueue;
-  }
-
-  /* Ring the command doorbell */
-  xhci_doorbell_notify(&xhci->command_ring);
-
-  /* Wait for the command to complete */
-  for (i = 0; i < XHCI_COMMAND_MAX_WAIT_MS; i++) {
-
-    /* Poll event ring */
-    xhci_event_poll(xhci);
-
-    /* Check for completion */
-    if (!xhci->pending) {
-      if (complete->code != XHCI_CMPLT_SUCCESS) {
-        rc = -1;
-        xhci_dbg("command failed, completion code %d\n",
-            complete->code, rc);
-        return rc;
-      }
-      return 0;
-    }
-
-    /* Delay */
-    xhci_mdelay (1);
-  }
-
-  /* Timeout */
-  xhci_dbg("timed out waiting for completion\n");
-  rc = -1;
-
-  /* Abort command */
-  //xhci_abort(xhci);
-
-err_enqueue:
-  xhci->pending = NULL;
-  return rc;
-}
-
-/** Transfer request block interrupt on completion flag */
-#define XHCI_TRB_IOC 0x20
-
-/**
- * Issue NOP and wait for completion
- *
- * @v xhci		xHCI device
- * @ret rc		Return status code
- */
-int xhci_nop(struct xhci *xhci)
-{
-  union xhci_trb trb;
-  struct xhci_trb_common *nop = &trb.common;
-  int rc;
-
-  /* Construct command */
-  xhci_memset(nop, 0, sizeof (*nop));
-  nop->flags = XHCI_TRB_IOC;
-  nop->type = XHCI_TRB_TYPE_NO_OP_COMMAND;
-
-  /* Issue command and wait for completion */
-  rc = xhci_command(xhci, &trb);
-  if (rc != 0)
-    return rc;
-
-  return 0;
-}
-
-int xhci_status(struct xhci *xhci, int verbose)
-{
-  uint32_t portsc;
-
-  /* Print connected ports */
-  xhci_printf("XHCI-%s cap=0x%08x PORTSC(n):", xhci->name, xhci->cap_regs);
-  for (int port=0; port<xhci->max_ports; port++)
-  {
-    portsc = xhci_read_portrs (xhci, port, PORTSC);
-    if (parse_reg(portsc, XHCI_OP_PORTSC_CCS))
-    {
-      xhci_printf(" %d", port);
-    }
-  }
-  xhci_printf("\n");
-
-  if (verbose)
-  {
-    /* Full dump of PORTSC regs */
-    for (int i=0; i<xhci->max_ports; i++)
-    {
-      xhci_dump_oper_portsc(xhci, i);
-      xhci_printf ("\n");
-    }
-  }
-
-  return 0;
-}
-
-/**
- * Determine alignment requirement for an xHCI data structure that must not
- * cross a page boundary. Solved by rounding up to nearest power of 2 size.
- *
- * The only datastructure with alignment of more than 64 bytes is the
- * scratchpad buffers, but they have only one size:
- *
- *   size = pagesize = alignment = boundary
- */
-static size_t xhci_align (size_t size)
-{
-  const size_t min_align = 64;
-  size_t align;
-  int n;
-
-  if (size < min_align || size == 0)
-  {
-    align = min_align;
-  }
-  else
-  {
-    /* Align to own length rounded up to a power of two */
-    size -= 1;
-    n = 1;
-    while (size >>= 1)
-      n++;
-    align = 1 << n;
-  }
-
-  return align;
-}
-
-/*
- * Allocate DMA memory while taking care of alignment and boundary
- * requirements.
- */
-static void *xhci_memalign(size_t size)
-{
-  void *ptr;
-  ptr = xhci_dma_alloc(xhci_align(size), size);
-  if (!ptr)
-    xhci_err("xhci: out of memory (failed to allocate %d bytes)\n", size);
-
-  return ptr;
 }
 
 /** Allocate memory for xHC Device Context Base Address Array.

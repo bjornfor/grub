@@ -520,6 +520,7 @@ union xhci_trb
   struct xhci_trb_common common;
   struct xhci_trb_complete complete;
   struct xhci_trb_host_controller host;
+  struct xhci_trb_port_status port;
   //struct xhci_trb_nop nop;
   uint32_t raw[4];
 };
