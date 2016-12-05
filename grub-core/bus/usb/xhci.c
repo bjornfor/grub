@@ -733,6 +733,9 @@ int xhci_status(struct xhci *xhci, int verbose)
  * scratchpad buffers, but they have only one size:
  *
  *   size = pagesize = alignment = boundary
+ *
+ * Also, some structures have less than 64 byte alignment requirements, but
+ * KISS.
  */
 static size_t xhci_align (size_t size)
 {
