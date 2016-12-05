@@ -162,6 +162,26 @@ static uint32_t xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci
   return mmio_read32 ((uint32_t *)addr);
 }
 
+/* Read Port Register Set n of given type */
+static void xhci_write_portrs(struct xhci *xhci, unsigned int port, enum xhci_portrs_type type, uint32_t value)
+{
+  static int num_warnings;
+  uint8_t *addr;
+
+  if (port > xhci->max_ports)
+  {
+    if (num_warnings == 0)
+    {
+      xhci_err ("too big port number (port=%d, max_ports=%d)\n", port, xhci->max_ports);
+      num_warnings += 1;
+    }
+    return;
+  }
+
+  addr = (uint8_t*)xhci->oper_regs + 0x400 + (0x10 * (port - 1)) + type;
+  mmio_write32 ((uint32_t *)addr, value);
+}
+
 /* Convert raw PAGESIZE value from Operational Register to a size in bytes */
 static size_t xhci_pagesize_to_bytes(int pagesize)
 {
