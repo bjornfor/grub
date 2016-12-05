@@ -188,13 +188,6 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
       return GRUB_USB_ERR_INTERNAL;
     }
 
-  /* Initialise USB legacy support and claim ownership */
-  //xhci_legacy_init(xhci);
-  //xhci_legacy_claim(xhci);
-  //xhci_extended_capabilities_foreach(xhci);
-
-  //grub_millisleep(10000);
-
   /* Build list of xHCI controllers */
   xhci_list_add(xhci);
   cur_xhci_id += 1;

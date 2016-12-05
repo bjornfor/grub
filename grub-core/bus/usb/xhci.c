@@ -1720,6 +1720,10 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
   /* Interrupts is not supported by this driver, so skipped */
 
   /* TODO: Take ownership of controller from BIOS, if supported */
+  /* Initialise USB legacy support and claim ownership */
+  //xhci_legacy_init(xhci);
+  //xhci_legacy_claim(xhci);
+  //xhci_extended_capabilities_foreach(xhci);
 
   xhci_dbg("XHCI-%s: cap=0x%08x oper=0x%08x run=0x%08x db=0x%08x\n",
       xhci->name, xhci->cap_regs, xhci->oper_regs, xhci->run_regs, xhci->db_regs);
