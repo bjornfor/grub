@@ -23,7 +23,7 @@ static grub_extcmd_t cmd_xhci_status;
 
 static unsigned int cur_xhci_id;
 static struct xhci *xhci_list[16];
-static int xhci_list_num_elems;
+static size_t xhci_list_num_elems;
 
 static struct xhci *xhci_list_first(int *iter)
 {
@@ -48,7 +48,7 @@ static struct xhci *xhci_list_first(int *iter)
 
 static int xhci_list_add(struct xhci *xhci)
 {
-  if (xhci_list_num_elems >= (int)(sizeof (xhci_list) / sizeof (xhci_list[0])))
+  if (xhci_list_num_elems >= (sizeof (xhci_list) / sizeof (xhci_list[0])))
   {
     return -1;
   }
@@ -60,12 +60,10 @@ static int xhci_list_add(struct xhci *xhci)
 
 static struct xhci *xhci_list_next(int *iter)
 {
-  if (*iter >= xhci_list_num_elems - 1)
-  {
-    return NULL;
-  }
-
   *iter += 1;
+  if (*iter >= (int)xhci_list_num_elems)
+    return NULL;
+
   return xhci_list[*iter];
 }
 

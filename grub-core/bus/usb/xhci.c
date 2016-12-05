@@ -855,6 +855,7 @@ xhci_reset (struct xhci *xhci)
   mmio_write_bits(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_HCRST, 1);
   if (!xhci_handshake(&xhci->oper_regs->usbcmd, XHCI_OP_USBCMD_HCRST, 1, 1000))
   {
+    xhci_dbg("Controller didn't reset within 1s\n");
     return -1;
   }
   return 0;
