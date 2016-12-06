@@ -861,59 +861,6 @@ xhci_reset (struct xhci *xhci)
   return 0;
 }
 
-/* Start the xHC by setting the RUN bit and wait for the controller to
- * acknowledge.
- */
-static void
-xhci_run (struct xhci *xhci)
-{
-  (void)xhci;
-  //uint32_t config;
-  //uint32_t usbcmd;
-
-  //if (mmio_read32(&xhci->oper_regs->usbsts) & )
-  {
-    //xhci_err("programming error\n");
-  }
-
-  /* Configure number of device ports */
-  //mmio_set_bits(&xhci->oper_regs->config, xhci->max_ports);
-
-  //config = readl ( xhci->op + XHCI_OP_CONFIG );
-  //config &= ~XHCI_CONFIG_MAX_SLOTS_EN_MASK;
-  //config |= XHCI_CONFIG_MAX_SLOTS_EN ( xhci->slots );
-  //writel ( config, xhci->op + XHCI_OP_CONFIG );
-
-  /* Set run/stop bit */
-  //usbcmd = readl ( xhci->op + XHCI_OP_USBCMD );
-  //usbcmd |= XHCI_USBCMD_RUN;
-  //writel ( usbcmd, xhci->op + XHCI_OP_USBCMD );
-}
-
-#if 0
-
-static void
-sync_all_caches (struct xhci *xhci)
-{
-  (void)xhci;
-  xhci_dbg("sync_all_caches enter\n");
-  return;
-#if 0
-  if (!xhci)
-    return;
-  if (xhci->td_virt)
-    grub_arch_sync_dma_caches (xhci->td_virt, sizeof (struct grub_xhci_td) *
-			       GRUB_XHCI_N_TD);
-  if (xhci->qh_virt)
-    grub_arch_sync_dma_caches (xhci->qh_virt, sizeof (struct grub_xhci_qh) *
-			       GRUB_XHCI_N_QH);
-  if (xhci->framelist_virt)
-    grub_arch_sync_dma_caches (xhci->framelist_virt, 4096);
-#endif
-}
-
-#endif
-
 int
 xhci_cancel_transfer (struct xhci *xhci)
 {
