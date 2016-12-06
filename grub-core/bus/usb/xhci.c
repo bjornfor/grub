@@ -764,7 +764,7 @@ static size_t xhci_align (size_t size)
  * Allocate DMA memory while taking care of alignment and boundary
  * requirements.
  */
-static void *xhci_memalign(size_t size)
+static void *xhci_dma_memalign(size_t size)
 {
   void *ptr;
   ptr = xhci_dma_alloc(xhci_align(size), size);
@@ -1440,7 +1440,7 @@ xhci_allocate_dcbaa(struct xhci *xhci)
 
   /* +1 to make room for the scratchpad pointer, at index 0 */
   xhci->dcbaa_len = (xhci->max_device_slots + 1) * sizeof (xhci->dcbaa[0]);
-  xhci->dcbaa = xhci_memalign(xhci->dcbaa_len);
+  xhci->dcbaa = xhci_dma_memalign(xhci->dcbaa_len);
   if (!xhci->dcbaa)
     return -1;
 
@@ -1506,7 +1506,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
   xhci->pagesize = xhci_pagesize_to_bytes(
       mmio_read_bits(&xhci->oper_regs->pagesize, XHCI_OP_PAGESIZE));
   xhci->scratchpads_len = xhci->num_scratch_bufs * xhci->pagesize;
-  xhci->scratchpads = xhci_memalign(xhci->scratchpads_len);
+  xhci->scratchpads = xhci_dma_memalign(xhci->scratchpads_len);
   if (!xhci->scratchpads)
   {
     return -1;
@@ -1515,7 +1515,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
 
   /* Allocate Scratchpad Buffer Array, where each element points to a buffer */
   xhci->scratchpad_arr_len = xhci->num_scratch_bufs * sizeof (xhci->scratchpad_arr[0]);
-  xhci->scratchpad_arr = xhci_memalign(xhci->scratchpad_arr_len);
+  xhci->scratchpad_arr = xhci_dma_memalign(xhci->scratchpad_arr_len);
   if (!xhci->scratchpad_arr)
     return -1;
   xhci_memset(xhci->scratchpad_arr, 0, xhci->scratchpad_arr_len);
@@ -1613,7 +1613,7 @@ xhci_setup_ring(struct xhci *xhci,
   ring->db_val = XHCI_DBVAL(target, stream);
 
   /* Allocate (physically contiguous) memory for the TRBs */
-  ring->trbs = xhci_memalign(len);
+  ring->trbs = xhci_dma_memalign(len);
 
   return -1;
 }
@@ -1641,7 +1641,7 @@ xhci_setup_event_ring(struct xhci *xhci)
   /* Allocate event ring */
   count = 1 << XHCI_EVENT_TRBS_LOG2;
   len = count * sizeof (event->trb[0]);
-  event->trb = xhci_memalign(len);
+  event->trb = xhci_dma_memalign(len);
   if (!event->trb) {
     return -1;
   }
@@ -1652,7 +1652,7 @@ xhci_setup_event_ring(struct xhci *xhci)
   }
 
   /* Allocate event ring segment table */
-  event->segment = xhci_memalign(sizeof (event->segment[0]));
+  event->segment = xhci_dma_memalign(sizeof (event->segment[0]));
   if (!event->segment) {
     return -1;
   }
