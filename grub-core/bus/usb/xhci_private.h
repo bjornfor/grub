@@ -585,13 +585,24 @@ struct xhci
   int ac64; /* controller supports 64-bit addressing */
   int num_scratch_bufs;
 
-  /* Other data */
-  char name[16]; /* for identification purposes in debug output */
-  uint64_t *dcbaa;     /* virtual address, dynamically allocated array
-                               where each element points to a Slot Context */
-  uint32_t dcbaa_len;  /* size in bytes */
-  uint8_t *scratchpads;    /* virtual address, dynamically allocated array */
+  /*
+   * Other data
+   */
+  /* for identification purposes in debug output */
+  char name[16];
+
+ /*
+  * Virtual address, dynamically allocated array where each element points to a
+  * Device Context.
+  */
+  uint64_t *dcbaa;
+  /* size in bytes */
+  uint32_t dcbaa_len;
+
+  /* virtual address, dynamically allocated array */
+  uint8_t *scratchpads;
   uint8_t scratchpads_len;
+
   uint64_t *scratchpad_arr;  /* virtual address, dynamically allocated array
                                      with physical address pointers to
                                      pagesized areas in "scratchpads" memory
