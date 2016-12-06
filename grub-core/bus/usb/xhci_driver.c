@@ -84,27 +84,62 @@ static void dbg(const char *fmt, ...)
 
 static const struct grub_arg_option cmd_options[] =
   {
-    {"verbose", 'v', 0,
-     N_("Be verbose."), 0, ARG_TYPE_NONE},
+    {"verbose", 'v', 0, N_("Be verbose."), 0, ARG_TYPE_NONE},
+    {"id", 'i', 0, N_("Operate on this instance [0..n]"), 0, ARG_TYPE_INT},
     {0, 0, 0, 0, 0, 0}
   };
 
+static int get_int_arg (const struct grub_arg_list *state)
+{
+  int default_value = 0; /* if arg not set */
+  return (state->set ? (int)grub_strtoul (state->arg, 0, 0) : default_value);
+}
 
 static grub_err_t
 do_cmd_xhci_status (grub_extcmd_context_t ctxt, int argc, char *argv[])
 {
   int iter;
   struct xhci *xhci;
-  int verbose = 0;
-  (void)argc;
-  (void)argv;
-
+  enum op { CMD_NOP, STATUS } op;
   struct grub_arg_list *state = ctxt->state;
- 
-  verbose = state[0].set;
+  int i = 0;
+  int verbose     = state[i++].set;
+  int id          = get_int_arg (&state[i++]);
 
-  for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
-    xhci_status(xhci, verbose);
+  /* Get the operation */
+  op = STATUS;
+  for (i = 0; i < argc; i++)
+  {
+    if (grub_strcmp(argv[i], "cmd-nop") == 0)
+    {
+      op = CMD_NOP;
+    }
+  }
+
+  /* Get the device */
+  for (i = 0, xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter), i++)
+  {
+    if (i == id)
+      break;
+  }
+
+  if (!xhci)
+  {
+    grub_printf("no such device (bad --id value: %d)\n", id);
+    return GRUB_ERR_UNKNOWN_DEVICE;
+  }
+
+  /* Do the operation */
+  switch (op)
+  {
+    case STATUS:
+      xhci_status(xhci, verbose);
+      break;
+
+    case CMD_NOP:
+      xhci_nop(xhci);
+      break;
+  }
 
   return 0;
 }
@@ -377,7 +412,7 @@ GRUB_MOD_INIT (xhci)
 
   cmd_xhci_status =
     grub_register_extcmd ("xhci", do_cmd_xhci_status, 0,
-        N_("[-v|--verbose]"),
+        N_("[-v|--verbose] [-i|--id N] [cmd-nop]"),
         N_("Print xHCI driver status."),
         cmd_options);
   //dbg ("GRUB_MOD_INIT completed\n");
