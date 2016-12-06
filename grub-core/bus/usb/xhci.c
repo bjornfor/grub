@@ -1508,6 +1508,22 @@ xhci_setup_scratchpad(struct xhci *xhci)
   return 0;
 }
 
+static void xhci_scratchpad_free(struct xhci* xhci)
+{
+  /* TODO: write null-pointers to HW? */
+  if (xhci->scratchpad_arr)
+  {
+    xhci_dma_free(xhci->scratchpad_arr);
+    xhci->scratchpad_arr = 0;
+  }
+
+  if (xhci->scratchpads)
+  {
+    xhci_dma_free(xhci->scratchpads);
+    xhci->scratchpads = 0;
+  }
+}
+
 #if 0
 /* Copied from iPXE */
 static int
@@ -1773,7 +1789,13 @@ void xhci_destroy (struct xhci *xhci)
 {
   xhci_stop (xhci);
   xhci_reset (xhci);
-  /* TODO: free sub-datastructures from xhci first */
+
+  xhci_dma_free((void*)xhci->command_ring.trbs);
+  xhci_dma_free((void*)xhci->event_ring.trb);
+  xhci_dma_free((void*)xhci->event_ring.segment);
+  xhci_dma_free((void*)xhci->transfer_ring.trbs);
+  xhci_dcbaa_free(xhci);
+  xhci_scratchpad_free(xhci);
   xhci_free (xhci);
 }
 
