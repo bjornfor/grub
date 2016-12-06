@@ -29,6 +29,8 @@ void xhci_free(void *ptr);
 
 void *xhci_dma_alloc(size_t align, size_t size);
 
+void xhci_dma_free(void *ptr);
+
 uintptr_t xhci_dma_get_phys(void *ptr);
 
 uint8_t mmio_read8 (const volatile uint8_t *addr);

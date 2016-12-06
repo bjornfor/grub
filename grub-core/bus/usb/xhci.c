@@ -1430,7 +1430,7 @@ xhci_setup_transfer (struct xhci *xhci)
  * address must be written to DCBAAP.
  */
 static int
-xhci_allocate_dcbaa(struct xhci *xhci)
+xhci_dcbaa_alloc(struct xhci *xhci)
 {
   if (xhci->dcbaa)
   {
@@ -1448,9 +1448,23 @@ xhci_allocate_dcbaa(struct xhci *xhci)
   return 0;
 }
 
+static void
+xhci_dcbaa_free(struct xhci *xhci)
+{
+  if (xhci->dcbaa)
+  {
+    xhci_dma_free(xhci->dcbaa);
+    xhci->dcbaa = NULL;
+  }
+  else
+  {
+    xhci_err("Programming error (xhci->dcbaa is NULL)\n");
+  }
+}
+
 /** Program xHC DCBAAP register with physical DCBAA from 'xhci' instance */
 static int
-xhci_program_dcbaap(struct xhci *xhci)
+xhci_dcbaap_program(struct xhci *xhci)
 {
   uint32_t dcbaa_phys;
 
@@ -1473,10 +1487,10 @@ static int
 xhci_setup_dcbaa(struct xhci *xhci)
 {
   int rc;
-  rc = xhci_allocate_dcbaa(xhci);
+  rc = xhci_dcbaa_alloc(xhci);
   if (rc)
     return rc;
-  return xhci_program_dcbaap(xhci);
+  return xhci_dcbaap_program(xhci);
 }
 
 /*
@@ -1517,7 +1531,10 @@ xhci_setup_scratchpad(struct xhci *xhci)
   xhci->scratchpad_arr_len = xhci->num_scratch_bufs * sizeof (xhci->scratchpad_arr[0]);
   xhci->scratchpad_arr = xhci_dma_memalign(xhci->scratchpad_arr_len);
   if (!xhci->scratchpad_arr)
+  {
+    xhci_dma_free(xhci->scratchpads);
     return -1;
+  }
   xhci_memset(xhci->scratchpad_arr, 0, xhci->scratchpad_arr_len);
 
   /* Fill Scratchpad Buffers Array with addresses of the scratch buffers */
@@ -1532,6 +1549,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
    /* The location of the Scratcphad Buffer array is defined by entry 0 of the
     * DCBAA. We only support 32-bit.
     */
+  xhci_dbg("scratchpad arr phys addr: @%p\n", scratchpad_arr_phys);
   mmio_write32((uint32_t*)&xhci->dcbaa, scratchpad_arr_phys);
 
   return 0;
@@ -1681,8 +1699,6 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
   int rc;
   struct xhci *xhci = NULL;
   int32_t hcsparams1;
-  //uint32_t hcsparams2;
-  //uint32_t hccparams1;
 
   /* Sanity check register addresses.
    * No limits.h or CHAR_BIT available, use GRUB_CHAR_BIT.
@@ -1709,7 +1725,10 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
      DBOFF_TO_BYTES(mmio_read_bits (&xhci->cap_regs->dboff, XHCI_CAP_DBOFF)));
 
   if (xhci_wait_ready(xhci))
+  {
+    xhci_free(xhci);
     return NULL;
+  }
 
   /* Get some structural info */
   hcsparams1 = mmio_read32 (&xhci->cap_regs->hcsparams1);
@@ -1723,13 +1742,31 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
       xhci->num_enabled_slots);
 
   /* Allocate memory and write the pointer to DCBAAP register */
-  xhci_setup_dcbaa(xhci);
+  rc = xhci_setup_dcbaa(xhci);
+  if (rc)
+  {
+    xhci_free(xhci);
+    return NULL;
+  }
 
   /* Allocate Scratchpad Buffer memory for the xHC */
-  xhci_setup_scratchpad(xhci);
+  rc = xhci_setup_scratchpad(xhci); /* breaks 'rmmod xhci' */
+  if (rc)
+  {
+    xhci_dcbaa_free(xhci);
+    xhci_free(xhci);
+    return NULL;
+  }
 
   /* Setup Command Ring */
-  xhci_setup_command_ring(xhci);
+  rc = xhci_setup_command_ring(xhci);
+  if (rc)
+  {
+    xhci_dcbaa_free(xhci);
+    /* TODO: free scratchbufs */
+    xhci_free(xhci);
+    return NULL;
+  }
 
   /* Setup Event Ring */
   xhci_setup_event_ring(xhci);

@@ -98,6 +98,11 @@ void *xhci_dma_alloc(size_t align, size_t size)
   return grub_memalign_dma32 (align, size);
 }
 
+void xhci_dma_free(void *ptr)
+{
+  return grub_dma_free (ptr);
+}
+
 uintptr_t xhci_dma_get_phys(void *ptr)
 {
   return grub_dma_get_phys(ptr);
