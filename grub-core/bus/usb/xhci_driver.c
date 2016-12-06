@@ -20,6 +20,7 @@ GRUB_MOD_LICENSE ("GPLv3+");
 #define XHCI_PCI_SBRN_REG  0x60
 
 static grub_extcmd_t cmd_xhci_status;
+struct grub_preboot *preboot_hook;
 
 static unsigned int cur_xhci_id;
 static struct xhci *xhci_list[16];
@@ -407,7 +408,7 @@ GRUB_MOD_INIT (xhci)
   grub_usb_controller_dev_register (&usb_controller_dev);
   grub_boot_time ("xHCI driver registered");
   //dbg ("xHCI driver is registered, register preboot hook\n");
-  grub_loader_register_preboot_hook (xhci_fini_hw, xhci_restore_hw,
+  preboot_hook = grub_loader_register_preboot_hook (xhci_fini_hw, xhci_restore_hw,
 				     GRUB_LOADER_PREBOOT_HOOK_PRIO_DISK);
 
   cmd_xhci_status =
@@ -422,6 +423,7 @@ GRUB_MOD_FINI (xhci)
 {
   //dbg ("[unloading]\n");
   grub_unregister_extcmd (cmd_xhci_status);
-  xhci_fini_hw (0);
   grub_usb_controller_dev_unregister (&usb_controller_dev);
+  grub_loader_unregister_preboot_hook (preboot_hook);
+  xhci_fini_hw (0);
 }
