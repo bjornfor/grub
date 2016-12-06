@@ -87,6 +87,11 @@ void *xhci_dma_alloc(size_t align, size_t size)
   return malloc (size);
 }
 
+void xhci_dma_free(void *ptr)
+{
+  free (ptr);
+}
+
 uintptr_t xhci_dma_get_phys(void *ptr)
 {
   return (uintptr_t)ptr;
