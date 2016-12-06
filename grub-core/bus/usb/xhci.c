@@ -142,6 +142,12 @@ static void xhci_err(const char *fmt, ...)
   va_end (args);
 }
 
+static int xhci_get_contextsize(struct xhci *xhci)
+{
+  int csz = mmio_read_bits (&xhci->cap_regs->hccparams1, XHCI_CAP_HCCPARAMS1_CSZ);
+  return csz ? 64 : 32;
+}
+
 /* Read Port Register Set n of given type */
 static uint32_t xhci_read_portrs(struct xhci *xhci, unsigned int port, enum xhci_portrs_type type)
 {
@@ -1732,6 +1738,9 @@ struct xhci *xhci_create (volatile void *mmio_base_addr, int seqno)
   xhci_dbg("XHCI-%s: scratch_bufs=%d (arr @ 0x%08x) pagesize=%d AC64=%d\n",
       xhci->name, xhci->num_scratch_bufs, xhci->scratchpad_arr,
       xhci->pagesize, xhci->ac64);
+  xhci_dbg("XHCI-%s: max_ports=%d max_slots=%d ctx_size=%d\n",
+      xhci->name, xhci->max_ports, xhci->max_device_slots,
+      xhci_get_contextsize(xhci));
 
   /* Start the controller so that it accepts dorbell notifications.
    * We can run commands and the root hub ports will begin reporting device
