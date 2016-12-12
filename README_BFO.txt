@@ -14,6 +14,8 @@ grub-mknetdir from above says:
 
   dhcp-boot=/srv/tftp/boot/grub/i386-pc/core.0
 
+Configure /srv/tftp/boot/grub/grub.cfg to your liking.
+
 
 Installing GRUB to a disk image
 -------------------------------
