@@ -33,8 +33,14 @@
 //#include <pci.h>
 //#include <usb/usb.h>
 
-//hci_t *xhci_pci_init (pcidev_t addr);
-//hci_t *xhci_init (unsigned long physical_bar);
+void xhci_start (xhci_t *const xhci);
+void xhci_stop (xhci_t *const xhci);
+void xhci_reset (xhci_t *const xhci);
+void xhci_reinit (xhci_t *const xhci);
+void xhci_shutdown (xhci_t *const xhci);
+
+//xhci_t *xhci_pci_init (pcidev_t addr);
+xhci_t *xhci_init (unsigned long physical_bar);
 
 //void xhci_rh_init (usbdev_t *dev);
 

@@ -45,19 +45,23 @@ typedef grub_uint32_t u32;
 typedef grub_uint64_t u64;
 typedef grub_size_t size_t;
 
-/* BEGIN from coreboot/.../usb.h */
-struct usbdev_hc;
-typedef struct usbdev_hc hci_t;
+#define PRIx32 "%lld" /* full stdint.h missing in GRUB */
+#define PRIx8 "%d" /* full stdint.h missing in GRUB */
 
-struct usbdev;
-typedef struct usbdev usbdev_t;
+/* BEGIN from coreboot/.../usb.h */
+//struct usbdev_hc;
+//typedef struct usbdev_hc hci_t;
+
+//struct usbdev;
+//typedef struct usbdev usbdev_t;
 
 typedef enum { SETUP, IN, OUT } direction_t;
 typedef enum { CONTROL = 0, ISOCHRONOUS = 1, BULK = 2, INTERRUPT = 3
 } endpoint_type;
 
 typedef struct {
-	usbdev_t *dev;
+	//usbdev_t *dev;
+	int address;
 	int endpoint;
 	direction_t direction;
 	int toggle;
@@ -75,7 +79,7 @@ typedef enum {
 
 
 //#define XHCI_DUMPS
-#define xhci_debug(fmt, args...) usb_debug("%s: " fmt, __func__, ## args)
+//#define xhci_debug(fmt, args...) xhci_printf("%s: " fmt, __func__, ## args)
 #ifdef XHCI_SPEW_DEBUG
 # define xhci_spew(fmt, args...) xhci_debug(fmt, ##args)
 #else
@@ -302,6 +306,7 @@ typedef volatile struct slotctx {
 #define EC_DUMP(tok, ec)	usb_debug(" "#tok"\t0x%04"PRIx32"\n", EC_GET(tok, ec))
 enum { EP_ISOC_OUT = 1, EP_BULK_OUT = 2, EP_INTR_OUT = 3,
 	EP_CONTROL = 4, EP_ISOC_IN = 5, EP_BULK_IN = 6, EP_INTR_IN = 7 };
+/* Endpoint Context, section 6.2.3 in the xHCI spec */
 typedef volatile struct epctx {
 	u32 f1;
 	u32 f2;
@@ -343,7 +348,7 @@ typedef struct intrq {
 	size_t count;	/* The number of TRBs to fill at once */
 	trb_t *next;	/* The next TRB expected to be processed by the controller */
 	trb_t *ready;	/* The last TRB in the transfer ring processed by the controller */
-	endpoint_t *ep;
+	//endpoint_t *ep;
 } intrq_t;
 
 typedef struct devinfo {
@@ -514,7 +519,7 @@ typedef struct xhci {
 	event_ring_t er;
 	volatile erst_entry_t *ev_ring_table;
 
-	usbdev_t *roothub;
+	//usbdev_t *roothub;
 
 	u8 max_slots_en;
 	devinfo_t *dev;	/* array of devinfos by slot_id */
@@ -527,9 +532,9 @@ typedef struct xhci {
 
 void *xhci_align(const size_t min_align, const size_t size);
 void xhci_init_cycle_ring(transfer_ring_t *, const size_t ring_size);
-usbdev_t *xhci_set_address (hci_t *, usb_speed speed, int hubport, int hubaddr);
-int xhci_finish_device_config(usbdev_t *);
-void xhci_destroy_dev(hci_t *, int slot_id);
+//usbdev_t *xhci_set_address (hci_t *, usb_speed speed, int hubport, int hubaddr);
+//int xhci_finish_device_config(usbdev_t *);
+//void xhci_destroy_dev(hci_t *, int slot_id);
 
 void xhci_reset_event_ring(event_ring_t *);
 void xhci_advance_event_ring(xhci_t *);

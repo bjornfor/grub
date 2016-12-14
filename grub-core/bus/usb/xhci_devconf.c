@@ -29,10 +29,12 @@
 
 //#define XHCI_SPEW_DEBUG
 
-#include <arch/virtual.h>
-#include <usb/usb.h>
+//#include <arch/virtual.h>
+//#include <usb/usb.h>
+#include "xhci_io.h"
 #include "xhci_private.h"
 
+#if 0
 static u32
 xhci_gen_route(xhci_t *const xhci, const int hubport, const int hubaddr)
 {
@@ -48,6 +50,7 @@ xhci_gen_route(xhci_t *const xhci, const int hubport, const int hubaddr)
 	}
 	return route_string;
 }
+#endif
 
 static int
 xhci_get_rh_port(xhci_t *const xhci, const int hubport, const int hubaddr)
@@ -95,7 +98,7 @@ xhci_reap_slots(xhci_t *const xhci, int skip_slot)
 		else
 			xhci_spew("Successfully reaped slot %d\n", i);
 		xhci->dcbaa[i] = 0;
-		free(xhci->dev[i].ctx.raw);
+		xhci_free(xhci->dev[i].ctx.raw);
 		xhci->dev[i].ctx.raw = NULL;
 	}
 }
@@ -105,25 +108,26 @@ xhci_make_inputctx(const size_t ctxsize)
 {
 	int i;
 	const size_t size = (1 + NUM_EPS) * ctxsize;
-	inputctx_t *const ic = malloc(sizeof(*ic));
+	inputctx_t *const ic = xhci_malloc(sizeof(*ic));
 	void *dma_buffer = dma_memalign(64, size);
 
 	if (!ic || !dma_buffer) {
-		free(ic);
-		free(dma_buffer);
+		xhci_free(ic);
+		xhci_free(dma_buffer);
 		return NULL;
 	}
 
-	memset(dma_buffer, 0, size);
-	ic->drop = dma_buffer + 0;
-	ic->add = dma_buffer + 4;
-	dma_buffer += ctxsize;
-	for (i = 0; i < NUM_EPS; i++, dma_buffer += ctxsize)
+	xhci_memset(dma_buffer, 0, size);
+	ic->drop = (void*)((char*)dma_buffer + 0);
+	ic->add = (void*)((char*)dma_buffer + 4);
+	dma_buffer = (void*)((char*)dma_buffer + ctxsize);
+	for (i = 0; i < NUM_EPS; i++, dma_buffer = (void*)((char*)dma_buffer + ctxsize))
 		ic->dev.ep[i] = dma_buffer;
 
 	return ic;
 }
 
+#if 0
 usbdev_t *
 xhci_set_address (hci_t *controller, usb_speed speed, int hubport, int hubaddr)
 {
@@ -134,7 +138,7 @@ xhci_set_address (hci_t *controller, usb_speed speed, int hubport, int hubaddr)
 	int i;
 
 	inputctx_t *const ic = xhci_make_inputctx(ctxsize);
-	transfer_ring_t *const tr = malloc(sizeof(*tr));
+	transfer_ring_t *const tr = xhci_malloc(sizeof(*tr));
 	if (tr)
 		tr->ring = xhci_align(16, TRANSFER_RING_SIZE * sizeof(trb_t));
 	if (!ic || !tr || !tr->ring) {
@@ -251,19 +255,21 @@ _disable_return:
 	dev = NULL;
 _free_return:
 	if (tr)
-		free((void *)tr->ring);
-	free(tr);
+		xhci_free((void *)tr->ring);
+	xhci_free(tr);
 	if (di) {
-		free(di->ctx.raw);
+		xhci_free(di->ctx.raw);
 		di->ctx.raw = 0;
 	}
 _free_ic_return:
 	if (ic)
-		free(ic->raw);
-	free(ic);
+		xhci_free(ic->raw);
+	xhci_free(ic);
 	return dev;
 }
+#endif
 
+#if 0
 static int
 xhci_finish_hub_config(usbdev_t *const dev, inputctx_t *const ic)
 {
@@ -285,7 +291,9 @@ xhci_finish_hub_config(usbdev_t *const dev, inputctx_t *const ic)
 
 	return 0;
 }
+#endif
 
+#if 0
 static size_t
 xhci_bound_interval(const endpoint_t *const ep)
 {
@@ -310,25 +318,25 @@ xhci_bound_interval(const endpoint_t *const ep)
 			return ep->interval;
 	}
 }
+#endif
 
 static int
-xhci_finish_ep_config(const endpoint_t *const ep, inputctx_t *const ic)
+xhci_finish_ep_config(xhci_t *const xhci, const endpoint_t *const ep, inputctx_t *const ic)
 {
-	xhci_t *const xhci = XHCI_INST(ep->dev->controller);
-	const int ep_id = xhci_ep_id(ep);
+	const unsigned int ep_id = xhci_ep_id(ep);
 	xhci_debug("ep_id: %d\n", ep_id);
 	if (ep_id <= 1 || 32 <= ep_id)
 		return DRIVER_ERROR;
 
-	transfer_ring_t *const tr = malloc(sizeof(*tr));
+	transfer_ring_t *const tr = xhci_malloc(sizeof(*tr));
 	if (tr)
 		tr->ring = xhci_align(16, TRANSFER_RING_SIZE * sizeof(trb_t));
 	if (!tr || !tr->ring) {
-		free(tr);
+		xhci_free(tr);
 		xhci_debug("Out of memory\n");
 		return OUT_OF_MEMORY;
 	}
-	xhci->dev[ep->dev->address].transfer_rings[ep_id] = tr;
+	xhci->dev[ep->address].transfer_rings[ep_id] = tr;
 	xhci_init_cycle_ring(tr, TRANSFER_RING_SIZE);
 
 	*ic->add |= (1 << ep_id);
@@ -339,7 +347,8 @@ xhci_finish_ep_config(const endpoint_t *const ep, inputctx_t *const ic)
 	xhci_debug("Filling epctx (@%p)\n", epctx);
 	epctx->tr_dq_low	= virt_to_phys(tr->ring);
 	epctx->tr_dq_high	= 0;
-	EC_SET(INTVAL,	epctx, xhci_bound_interval(ep));
+	//EC_SET(INTVAL,	epctx, xhci_bound_interval(ep));
+	EC_SET(INTVAL,	epctx, 3); /* 3 is valid for all types of endpoints */
 	EC_SET(CERR,	epctx, 3);
 	EC_SET(TYPE,	epctx, ep->type | ((ep->direction != OUT) << 2));
 	EC_SET(MPS,	epctx, ep->maxpacketsize);
@@ -353,7 +362,7 @@ xhci_finish_ep_config(const endpoint_t *const ep, inputctx_t *const ic)
 	EC_SET(AVRTRB,	epctx, avrtrb);
 	EC_SET(MXESIT,  epctx, EC_GET(MPS, epctx) * EC_GET(MBS, epctx));
 
-	if (IS_ENABLED(CONFIG_LP_USB_XHCI_MTK_QUIRK)) {
+	if (1 /*IS_ENABLED(CONFIG_LP_USB_XHCI_MTK_QUIRK)*/) {
 		/* The MTK xHCI defines some extra SW parameters which are
 		 * put into reserved DWs in Slot and Endpoint Contexts for
 		 * synchronous endpoints. But for non-isochronous transfers,
@@ -366,6 +375,7 @@ xhci_finish_ep_config(const endpoint_t *const ep, inputctx_t *const ic)
 	return 0;
 }
 
+#if 0
 int
 xhci_finish_device_config(usbdev_t *const dev)
 {
@@ -396,7 +406,7 @@ xhci_finish_device_config(usbdev_t *const dev)
 	}
 
 	for (i = 1; i < dev->num_endp; ++i) {
-		ret = xhci_finish_ep_config(&dev->endpoints[i], ic);
+		ret = xhci_finish_ep_config(xhci, &dev->endpoints[i], ic);
 		if (ret)
 			goto _free_ep_ctx_return;
 	}
@@ -423,21 +433,20 @@ xhci_finish_device_config(usbdev_t *const dev)
 _free_ep_ctx_return:
 	for (i = 2; i < 31; ++i) {
 		if (di->transfer_rings[i])
-			free((void *)di->transfer_rings[i]->ring);
-		free(di->transfer_rings[i]);
+			xhci_free((void *)di->transfer_rings[i]->ring);
+		xhci_free(di->transfer_rings[i]);
 		di->transfer_rings[i] = NULL;
 	}
 _free_return:
-	free(ic->raw);
-	free(ic);
+	xhci_free(ic->raw);
+	xhci_free(ic);
 	return ret;
 }
+#endif
 
-void
-xhci_destroy_dev(hci_t *const controller, const int slot_id)
+static void
+xhci_destroy_dev(xhci_t *const xhci, const int slot_id)
 {
-	xhci_t *const xhci = XHCI_INST(controller);
-
 	if (slot_id <= 0 || slot_id > xhci->max_slots_en)
 		return;
 
@@ -446,7 +455,7 @@ xhci_destroy_dev(hci_t *const controller, const int slot_id)
 		xhci_debug("Out of memory, leaking resources!\n");
 		return;
 	}
-	const int num_eps = controller->devices[slot_id]->num_endp;
+	const int num_eps = 0; //FIXME. Was controller->devices[slot_id]->num_endp;
 	*ic->add = 0;	/* Leave Slot/EP0 state as it is for now. */
 	*ic->drop = (1 << num_eps) - 1;	/* Drop all endpoints we can. */
 	*ic->drop &= ~(1 << 1 | 1 << 0); /* Not allowed to drop EP0 or Slot. */
@@ -461,9 +470,9 @@ xhci_destroy_dev(hci_t *const controller, const int slot_id)
 	devinfo_t *const di = &xhci->dev[slot_id];
 	for (i = 1; i < num_eps; ++i) {
 		if (di->transfer_rings[i])
-			free((void *)di->transfer_rings[i]->ring);
-		free(di->transfer_rings[i]);
-		free(di->interrupt_queues[i]);
+			xhci_free((void *)di->transfer_rings[i]->ring);
+		xhci_free(di->transfer_rings[i]);
+		xhci_free(di->interrupt_queues[i]);
 	}
 
 	xhci_spew("Stopped slot %d, but not disabling it yet.\n", slot_id);

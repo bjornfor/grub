@@ -42,6 +42,22 @@ int xhci_debug_enabled(void)
     (grub_strword (debug, "all") || grub_strword (debug, "xhci"));
 }
 
+/**
+ * A printf function which does not prefix output.
+ * Only output anything if the GRUB debug variable contains "all" or "xhci".
+ */
+void xhci_debug(const char *fmt, ...)
+{
+  va_list args;
+
+  if (xhci_debug_enabled())
+    {
+      va_start (args, fmt);
+      xhci_vprintf (fmt, args);
+      va_end (args);
+    }
+}
+
 void xhci_mdelay(unsigned int delay)
 {
   grub_millisleep(delay);
@@ -83,6 +99,11 @@ void *xhci_calloc(size_t nmemb, size_t size)
   return grub_zalloc(nmemb*size);
 }
 
+void *xhci_malloc(size_t size)
+{
+  return grub_malloc(size);
+}
+
 void *xhci_memset(void *s, int c, size_t n)
 {
   return grub_memset(s, c, n);
@@ -106,6 +127,16 @@ void *dma_memalign(size_t align, size_t size)
 uintptr_t xhci_dma_get_phys(void *ptr)
 {
   return grub_dma_get_phys(ptr);
+}
+
+uintptr_t virt_to_phys(volatile void *ptr)
+{
+  return grub_dma_get_phys((void*)ptr);
+}
+
+void *phys_to_virt(uintptr_t phys)
+{
+  return (void*)grub_dma_get_virt((void*)phys);
 }
 
 //uint32_t pci_config_read (grub_pci_device_t dev, unsigned int reg)

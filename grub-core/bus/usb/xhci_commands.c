@@ -28,7 +28,8 @@
  */
 
 #include <inttypes.h>
-#include <arch/virtual.h>
+//#include <arch/virtual.h>
+#include "xhci_io.h"
 #include "xhci_private.h"
 
 trb_t *
@@ -48,7 +49,7 @@ xhci_post_command(xhci_t *const xhci)
 	++xhci->cr.cur;
 
 	/* pass command trb to hardware */
-	wmb();
+	//wmb();
 	/* Ring the doorbell */
 	xhci->dbreg[0] = 0;
 
@@ -81,7 +82,7 @@ xhci_wait_for_command(xhci_t *const xhci,
 	cc = xhci_wait_for_command_aborted(xhci, cmd_trb);
 
 	if (xhci->opreg->crcr_lo & CRCR_CRR)
-		fatal("xhci_wait_for_command: Command ring still running\n");
+		xhci_printf("xhci_wait_for_command: Command ring still running\n");
 
 	return cc;
 }

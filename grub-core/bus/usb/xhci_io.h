@@ -21,7 +21,11 @@ int xhci_snprintf (char *str, size_t n, const char *fmt, ...);
 
 int xhci_vprintf (const char *fmt, va_list ap);
 
+void xhci_debug(const char *fmt, ...);
+
 void *xhci_calloc(size_t nmemb, size_t size);
+
+void *xhci_malloc(size_t size);
 
 void *xhci_memset(void *s, int c, size_t n);
 
@@ -32,6 +36,10 @@ void *xhci_dma_alloc(size_t align, size_t size);
 void *dma_memalign(size_t align, size_t size);
 
 uintptr_t xhci_dma_get_phys(void *ptr);
+
+uintptr_t virt_to_phys(volatile void *ptr);
+
+void *phys_to_virt(uintptr_t phys);
 
 uint8_t mmio_read8 (const volatile uint8_t *addr);
 

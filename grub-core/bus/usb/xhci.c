@@ -31,22 +31,20 @@
 //#define XHCI_SPEW_DEBUG
 
 #include <inttypes.h>
+#include <string.h>
 //#include <arch/virtual.h>
 #include "xhci_private.h"
 #include "xhci_io.h"
 #include "xhci.h"
 
-static void xhci_start (hci_t *controller);
-static void xhci_stop (hci_t *controller);
-static void xhci_reset (hci_t *controller);
-static void xhci_reinit (hci_t *controller);
-static void xhci_shutdown (hci_t *controller);
-static int xhci_bulk (endpoint_t *ep, int size, u8 *data, int finalize);
-static int xhci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq,
-			 int dalen, u8 *data);
-static void* xhci_create_intr_queue (endpoint_t *ep, int reqsize, int reqcount, int reqtiming);
-static void xhci_destroy_intr_queue (endpoint_t *ep, void *queue);
-static u8* xhci_poll_intr_queue (void *queue);
+#define MIN(a, b) ((a) < (b) ? (b) : (a))
+
+//static int xhci_bulk (endpoint_t *ep, int size, u8 *data, int finalize);
+//static int xhci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq,
+//			 int dalen, u8 *data);
+//static void* xhci_create_intr_queue (endpoint_t *ep, int reqsize, int reqcount, int reqtiming);
+//static void xhci_destroy_intr_queue (endpoint_t *ep, void *queue);
+//static u8* xhci_poll_intr_queue (void *queue);
 
 /*
  * Some structures must not cross page boundaries. To get this,
@@ -89,7 +87,7 @@ xhci_init_cycle_ring(transfer_ring_t *const tr, const size_t ring_size)
 }
 
 /* On Panther Point: switch ports shared with EHCI to xHCI */
-#if IS_ENABLED(CONFIG_LP_USB_PCI)
+#if 0 //IS_ENABLED(CONFIG_LP_USB_PCI)
 static void
 xhci_switch_ppt_ports(pcidev_t addr)
 {
@@ -113,7 +111,7 @@ xhci_switch_ppt_ports(pcidev_t addr)
 }
 #endif
 
-#if IS_ENABLED(CONFIG_LP_USB_PCI)
+#if 0 // IS_ENABLED(CONFIG_LP_USB_PCI)
 /* On Panther Point: switch all ports back to EHCI */
 static void
 xhci_switchback_ppt_ports(pcidev_t addr)
@@ -129,67 +127,69 @@ xhci_switchback_ppt_ports(pcidev_t addr)
 #endif
 
 static long
-xhci_handshake(volatile u32 *const reg, u32 mask, u32 wait_for, long timeout_us)
+xhci_handshake(volatile u32 *const reg, u32 mask, u32 wait_for, long timeout_ms)
 {
-	while ((*reg & mask) != wait_for && timeout_us--) udelay(1);
-	return timeout_us;
+	while ((*reg & mask) != wait_for && timeout_ms--) xhci_mdelay(1);
+	return timeout_ms;
 }
 
 static int
 xhci_wait_ready(xhci_t *const xhci)
 {
 	xhci_debug("Waiting for controller to be ready... ");
-	if (!xhci_handshake(&xhci->opreg->usbsts, USBSTS_CNR, 0, 100000L)) {
-		usb_debug("timeout!\n");
+	if (!xhci_handshake(&xhci->opreg->usbsts, USBSTS_CNR, 0, 100L)) {
+		xhci_debug("timeout!\n");
 		return -1;
 	}
-	usb_debug("ok.\n");
+	xhci_debug("ok.\n");
 	return 0;
 }
 
-hci_t *
+xhci_t *
 xhci_init (unsigned long physical_bar)
 {
-	int i;
+	unsigned int i;
 
 	/* First, allocate and initialize static controller structures */
 
-	hci_t *const controller = new_controller();
-	controller->type		= XHCI;
-	controller->start		= xhci_start;
-	controller->stop		= xhci_stop;
-	controller->reset		= xhci_reset;
-	controller->init		= xhci_reinit;
-	controller->shutdown		= xhci_shutdown;
-	controller->bulk		= xhci_bulk;
-	controller->control		= xhci_control;
-	controller->set_address		= xhci_set_address;
-	controller->finish_device_config= xhci_finish_device_config;
-	controller->destroy_device	= xhci_destroy_dev;
-	controller->create_intr_queue	= xhci_create_intr_queue;
-	controller->destroy_intr_queue	= xhci_destroy_intr_queue;
-	controller->poll_intr_queue	= xhci_poll_intr_queue;
-	controller->pcidev		= 0;
+	xhci_t *xhci = xhci_calloc(1, sizeof(xhci_t));
 
-	controller->reg_base = (uintptr_t)physical_bar;
-	controller->instance = xzalloc(sizeof(xhci_t));
-	xhci_t *const xhci = (xhci_t *)controller->instance;
+	//hci_t *const controller = new_controller();
+	//controller->type		= XHCI;
+	//controller->start		= xhci_start;
+	//controller->stop		= xhci_stop;
+	//controller->reset		= xhci_reset;
+	//controller->init		= xhci_reinit;
+	//controller->shutdown		= xhci_shutdown;
+	//controller->bulk		= xhci_bulk;
+	//controller->control		= xhci_control;
+	//controller->set_address		= xhci_set_address;
+	//controller->finish_device_config= xhci_finish_device_config;
+	//controller->destroy_device	= xhci_destroy_dev;
+	//controller->create_intr_queue	= xhci_create_intr_queue;
+	//controller->destroy_intr_queue	= xhci_destroy_intr_queue;
+	//controller->poll_intr_queue	= xhci_poll_intr_queue;
+	//controller->pcidev		= 0;
 
-	init_device_entry(controller, 0);
-	xhci->roothub = controller->devices[0];
+	//controller->reg_base = (uintptr_t)physical_bar;
+	//controller->instance = xzalloc(sizeof(xhci_t));
+	//xhci_t *const xhci = (xhci_t *)controller->instance;
+
+	//init_device_entry(controller, 0);
+	//xhci->roothub = controller->devices[0];
 	xhci->cr.ring = xhci_align(64, COMMAND_RING_SIZE * sizeof(trb_t));
 	xhci->er.ring = xhci_align(64, EVENT_RING_SIZE * sizeof(trb_t));
 	xhci->ev_ring_table = xhci_align(64, sizeof(erst_entry_t));
-	if (!xhci->roothub || !xhci->cr.ring ||
+	if (/*!xhci->roothub ||*/ !xhci->cr.ring ||
 			!xhci->er.ring || !xhci->ev_ring_table) {
 		xhci_debug("Out of memory\n");
 		goto _free_xhci;
 	}
 
 	xhci->capreg	= phys_to_virt(physical_bar);
-	xhci->opreg	= ((void *)xhci->capreg) + xhci->capreg->caplength;
-	xhci->hcrreg	= ((void *)xhci->capreg) + xhci->capreg->rtsoff;
-	xhci->dbreg	= ((void *)xhci->capreg) + xhci->capreg->dboff;
+	xhci->opreg	= (void *)(((char *)xhci->capreg) + xhci->capreg->caplength);
+	xhci->hcrreg	= (void *)(((char *)xhci->capreg) + xhci->capreg->rtsoff);
+	xhci->dbreg	= (void *)(((char *)xhci->capreg) + xhci->capreg->dboff);
 	xhci_debug("regbase: 0x%"PRIx32"\n", physical_bar);
 	xhci_debug("caplen:  0x%"PRIx32"\n", xhci->capreg->caplength);
 	xhci_debug("rtsoff:  0x%"PRIx32"\n", xhci->capreg->rtsoff);
@@ -216,7 +216,7 @@ xhci_init (unsigned long physical_bar)
 	 */
 	xhci->max_slots_en = xhci->capreg->MaxSlots & CONFIG_LP_MASK_MaxSlotsEn;
 	xhci->dcbaa = xhci_align(64, (xhci->max_slots_en + 1) * sizeof(u64));
-	xhci->dev = malloc((xhci->max_slots_en + 1) * sizeof(*xhci->dev));
+	xhci->dev = xhci_malloc((xhci->max_slots_en + 1) * sizeof(*xhci->dev));
 	if (!xhci->dcbaa || !xhci->dev) {
 		xhci_debug("Out of memory\n");
 		goto _free_xhci;
@@ -242,7 +242,7 @@ xhci_init (unsigned long physical_bar)
 		for (i = 0; i < max_sp_bufs; ++i) {
 			/* Could use mmap() here if we had it.
 			   Maybe there is another way. */
-			void *const page = memalign(pagesize, pagesize);
+			void *const page = dma_memalign(pagesize, pagesize); /* FIXME: was plain memalign */
 			if (!page) {
 				xhci_debug("Out of memory\n");
 				goto _free_xhci_structs;
@@ -252,7 +252,7 @@ xhci_init (unsigned long physical_bar)
 		xhci->dcbaa[0] = virt_to_phys(xhci->sp_ptrs);
 	}
 
-	if (dma_initialized()) {
+	if (1 /*dma_initialized()*/) {
 		xhci->dma_buffer = dma_memalign(64 * 1024, DMA_SIZE);
 		if (!xhci->dma_buffer) {
 			xhci_debug("Not enough memory for DMA bounce buffer\n");
@@ -266,39 +266,39 @@ xhci_init (unsigned long physical_bar)
 
 	/* TODO: Check if BIOS claims ownership (and hand over) */
 
-	xhci_reset(controller);
-	xhci_reinit(controller);
+	xhci_reset(xhci);
+	xhci_reinit(xhci);
 
-	xhci->roothub->controller = controller;
-	xhci->roothub->init = xhci_rh_init;
-	xhci->roothub->init(xhci->roothub);
+	//xhci->roothub->controller = controller;
+	//xhci->roothub->init = xhci_rh_init;
+	//xhci->roothub->init(xhci->roothub);
 
-	return controller;
+	return xhci;
 
 _free_xhci_structs:
-	free(xhci->dma_buffer);
+	xhci_free(xhci->dma_buffer);
 	if (xhci->sp_ptrs) {
 		for (i = 0; i < max_sp_bufs; ++i) {
 			if (xhci->sp_ptrs[i])
-				free(phys_to_virt(xhci->sp_ptrs[i]));
+				xhci_free(phys_to_virt(xhci->sp_ptrs[i]));
 		}
 	}
-	free(xhci->sp_ptrs);
-	free(xhci->dcbaa);
+	xhci_free(xhci->sp_ptrs);
+	xhci_free(xhci->dcbaa);
 _free_xhci:
-	free((void *)xhci->ev_ring_table);
-	free((void *)xhci->er.ring);
-	free((void *)xhci->cr.ring);
-	free(xhci->roothub);
-	free(xhci->dev);
-	free(xhci);
+	xhci_free((void *)xhci->ev_ring_table);
+	xhci_free((void *)xhci->er.ring);
+	xhci_free((void *)xhci->cr.ring);
+	//xhci_free(xhci->roothub);
+	xhci_free(xhci->dev);
+	xhci_free(xhci);
 /* _free_controller: */
-	detach_controller(controller);
-	free(controller);
+	//detach_controller(xhci);
+	xhci_free(xhci);
 	return NULL;
 }
 
-#if IS_ENABLED(CONFIG_LP_USB_PCI)
+#if 0 //IS_ENABLED(CONFIG_LP_USB_PCI)
 hci_t *
 xhci_pci_init (pcidev_t addr)
 {
@@ -321,12 +321,10 @@ xhci_pci_init (pcidev_t addr)
 }
 #endif
 
-static void
-xhci_reset(hci_t *const controller)
+void
+xhci_reset(xhci_t *const xhci)
 {
-	xhci_t *const xhci = XHCI_INST(controller);
-
-	xhci_stop(controller);
+	xhci_stop(xhci);
 
 	xhci->opreg->usbcmd |= USBCMD_HCRST;
 
@@ -337,21 +335,19 @@ xhci_reset(hci_t *const controller)
 	 * Without this delay, the subsequent HC register access,
 	 * may result in a system hang very rarely.
 	 */
-	if (IS_ENABLED(CONFIG_LP_ARCH_X86))
-		mdelay(1);
+	if (1 /*IS_ENABLED(CONFIG_LP_ARCH_X86)*/)
+		xhci_mdelay(1);
 
 	xhci_debug("Resetting controller... ");
-	if (!xhci_handshake(&xhci->opreg->usbcmd, USBCMD_HCRST, 0, 1000000L))
-		usb_debug("timeout!\n");
+	if (!xhci_handshake(&xhci->opreg->usbcmd, USBCMD_HCRST, 0, 1000L))
+		xhci_debug("timeout!\n");
 	else
-		usb_debug("ok.\n");
+		xhci_debug("ok.\n");
 }
 
-static void
-xhci_reinit (hci_t *controller)
+void
+xhci_reinit (xhci_t *const xhci)
 {
-	xhci_t *const xhci = XHCI_INST(controller);
-
 	if (xhci_wait_ready(xhci))
 		return;
 
@@ -384,7 +380,7 @@ xhci_reinit (hci_t *controller)
 	xhci->ev_ring_table[0].seg_size = EVENT_RING_SIZE;
 
 	/* pass event ring table to hardware */
-	wmb();
+	//wmb();
 	/* Initialize primary interrupter */
 	xhci->hcrreg->intrrs[0].erstsz = 1;
 	xhci_update_event_dq(xhci);
@@ -392,7 +388,7 @@ xhci_reinit (hci_t *controller)
 	xhci->hcrreg->intrrs[0].erstba_lo = virt_to_phys(xhci->ev_ring_table);
 	xhci->hcrreg->intrrs[0].erstba_hi = 0;
 
-	xhci_start(controller);
+	xhci_start(xhci);
 
 #ifdef USB_DEBUG
 	int i;
@@ -411,20 +407,19 @@ xhci_reinit (hci_t *controller)
 #endif
 }
 
-static void
-xhci_shutdown(hci_t *const controller)
+void
+xhci_shutdown(xhci_t *const xhci)
 {
-	int i;
+	unsigned int i;
 
-	if (controller == 0)
+	if (xhci == 0)
 		return;
 
-	detach_controller(controller);
+	//detach_controller(controller);
 
-	xhci_t *const xhci = XHCI_INST(controller);
-	xhci_stop(controller);
+	xhci_stop(xhci);
 
-#if IS_ENABLED(CONFIG_LP_USB_PCI)
+#if 0 //IS_ENABLED(CONFIG_LP_USB_PCI)
         if (controller->pcidev)
 		xhci_switchback_ppt_ports(controller->pcidev);
 #endif
@@ -434,41 +429,37 @@ xhci_shutdown(hci_t *const controller)
 				     xhci->capreg->Max_Scratchpad_Bufs_Lo;
 		for (i = 0; i < max_sp_bufs; ++i) {
 			if (xhci->sp_ptrs[i])
-				free(phys_to_virt(xhci->sp_ptrs[i]));
+				xhci_free(phys_to_virt(xhci->sp_ptrs[i]));
 		}
 	}
-	free(xhci->sp_ptrs);
-	free(xhci->dma_buffer);
-	free(xhci->dcbaa);
-	free(xhci->dev);
-	free((void *)xhci->ev_ring_table);
-	free((void *)xhci->er.ring);
-	free((void *)xhci->cr.ring);
-	free(xhci);
-	free(controller);
+	xhci_free(xhci->sp_ptrs);
+	xhci_free(xhci->dma_buffer);
+	xhci_free(xhci->dcbaa);
+	xhci_free(xhci->dev);
+	xhci_free((void *)xhci->ev_ring_table);
+	xhci_free((void *)xhci->er.ring);
+	xhci_free((void *)xhci->cr.ring);
+	xhci_free(xhci);
 }
 
-static void
-xhci_start (hci_t *controller)
+void
+xhci_start (xhci_t *const xhci)
 {
-	xhci_t *const xhci = XHCI_INST(controller);
-
 	xhci->opreg->usbcmd |= USBCMD_RS;
-	if (!xhci_handshake(&xhci->opreg->usbsts, USBSTS_HCH, 0, 1000000L))
+	if (!xhci_handshake(&xhci->opreg->usbsts, USBSTS_HCH, 0, 1000L))
 		xhci_debug("Controller didn't start within 1s\n");
 }
 
-static void
-xhci_stop (hci_t *controller)
+void
+xhci_stop (xhci_t *const xhci)
 {
-	xhci_t *const xhci = XHCI_INST(controller);
-
 	xhci->opreg->usbcmd &= ~USBCMD_RS;
 	if (!xhci_handshake(&xhci->opreg->usbsts,
-			    USBSTS_HCH, USBSTS_HCH, 1000000L))
+			    USBSTS_HCH, USBSTS_HCH, 1000L))
 		xhci_debug("Controller didn't halt within 1s\n");
 }
 
+#if 0
 static int
 xhci_reset_endpoint(usbdev_t *const dev, endpoint_t *const ep)
 {
@@ -514,6 +505,7 @@ xhci_reset_endpoint(usbdev_t *const dev, endpoint_t *const ep)
 
 	return 0;
 }
+#endif
 
 static void
 xhci_enqueue_trb(transfer_ring_t *const tr)
@@ -526,7 +518,7 @@ xhci_enqueue_trb(transfer_ring_t *const tr)
 		xhci_spew("Handling LINK pointer\n");
 		const int tc = TRB_GET(TC, tr->cur);
 		TRB_SET(CH, tr->cur, chain);
-		wmb();
+		//wmb();
 		TRB_SET(C, tr->cur, tr->pcs);
 		tr->cur = phys_to_virt(tr->cur->ptr_low);
 		if (tc)
@@ -535,12 +527,11 @@ xhci_enqueue_trb(transfer_ring_t *const tr)
 }
 
 static void
-xhci_ring_doorbell(endpoint_t *const ep)
+xhci_ring_doorbell(xhci_t *const xhci, endpoint_t *const ep)
 {
 	/* Ensure all TRB changes are written to memory. */
-	wmb();
-	XHCI_INST(ep->dev->controller)->dbreg[ep->dev->address] =
-		xhci_ep_id(ep);
+	//wmb();
+	xhci->dbreg[ep->address] = xhci_ep_id(ep);
 }
 
 static void
@@ -561,7 +552,7 @@ xhci_enqueue_td(transfer_ring_t *const tr, const int ep, const size_t mps,
 			cur_length = length;
 			packets = 0;
 			length = 0;
-		} else if (!IS_ENABLED(CONFIG_LP_USB_XHCI_MTK_QUIRK)) {
+		} else if (1 /*!IS_ENABLED(CONFIG_LP_USB_XHCI_MTK_QUIRK)*/) {
 			packets -= (residue + cur_length) / mps;
 			residue = (residue + cur_length) % mps;
 			length -= cur_length;
@@ -574,7 +565,7 @@ xhci_enqueue_td(transfer_ring_t *const tr, const int ep, const size_t mps,
 		TRB_SET(TDS, trb, MIN(TRB_MAX_TD_SIZE, packets));
 		TRB_SET(CH, trb, 1);
 
-		if (length && IS_ENABLED(CONFIG_LP_USB_XHCI_MTK_QUIRK)) {
+		if (length && 1 /*IS_ENABLED(CONFIG_LP_USB_XHCI_MTK_QUIRK)*/) {
 			/*
 			 * For MTK's xHCI controller, TDS defines a number of
 			 * packets that remain to be transferred for a TD after
@@ -617,6 +608,7 @@ xhci_enqueue_td(transfer_ring_t *const tr, const int ep, const size_t mps,
 	xhci_enqueue_trb(tr);
 }
 
+#if 0
 static int
 xhci_control(usbdev_t *const dev, const direction_t dir,
 	     const int drlen, void *const devreq,
@@ -680,7 +672,7 @@ xhci_control(usbdev_t *const dev, const direction_t dir,
 	xhci_enqueue_trb(tr);
 
 	/* Ring doorbell for EP0 */
-	xhci_ring_doorbell(&dev->endpoints[0]);
+	xhci_ring_doorbell(xhci, &dev->endpoints[0]);
 
 	/* Wait for transfer events */
 	int i, transferred = 0;
@@ -755,7 +747,7 @@ xhci_bulk(endpoint_t *const ep, const int size, u8 *const src,
 	const unsigned mps = EC_GET(MPS, epctx);
 	const unsigned dir = (ep->direction == OUT) ? TRB_DIR_OUT : TRB_DIR_IN;
 	xhci_enqueue_td(tr, ep_id, mps, size, data, dir);
-	xhci_ring_doorbell(ep);
+	xhci_ring_doorbell(xhci, ep);
 
 	/* Wait for transfer event */
 	const int ret = xhci_wait_for_transfer(xhci, ep->dev->address, ep_id);
@@ -778,6 +770,7 @@ xhci_bulk(endpoint_t *const ep, const int size, u8 *const src,
 		memcpy(src, data, ret);
 	return ret;
 }
+#endif
 
 static trb_t *
 xhci_next_trb(trb_t *cur, int *const pcs)
@@ -791,6 +784,7 @@ xhci_next_trb(trb_t *cur, int *const pcs)
 	return cur;
 }
 
+#if 0
 /* create and hook-up an intr queue into device schedule */
 static void *
 xhci_create_intr_queue(endpoint_t *const ep,
@@ -821,7 +815,7 @@ xhci_create_intr_queue(endpoint_t *const ep,
 
 	/* Allocate intrq structure and reqdata chunks */
 
-	intrq_t *const intrq = malloc(sizeof(*intrq));
+	intrq_t *const intrq = xhci_malloc(sizeof(*intrq));
 	if (!intrq) {
 		xhci_debug("Out of memory\n");
 		return NULL;
@@ -862,20 +856,22 @@ xhci_create_intr_queue(endpoint_t *const ep,
 	   and ring the doorbell. */
 	for (i = 0; i < (reqcount - 1); ++i)
 		xhci_enqueue_trb(tr);
-	xhci_ring_doorbell(ep);
+	xhci_ring_doorbell(xhci, ep);
 
 	return intrq;
 
 _free_return:
 	cur = tr->cur;
 	for (--i; i >= 0; --i) {
-		free(phys_to_virt(cur->ptr_low));
+		xhci_free(phys_to_virt(cur->ptr_low));
 		cur = xhci_next_trb(cur, NULL);
 	}
-	free(intrq);
+	xhci_free(intrq);
 	return NULL;
 }
+#endif
 
+#if 0
 /* remove queue from device schedule, dropping all data that came in */
 static void
 xhci_destroy_intr_queue(endpoint_t *const ep, void *const q)
@@ -900,17 +896,19 @@ xhci_destroy_intr_queue(endpoint_t *const ep, void *const q)
 	/* Free all pending transfers and the interrupt queue structure */
 	int i;
 	for (i = 0; i < intrq->count; ++i) {
-		free(phys_to_virt(intrq->next->ptr_low));
+		xhci_free(phys_to_virt(intrq->next->ptr_low));
 		intrq->next = xhci_next_trb(intrq->next, NULL);
 	}
 	xhci->dev[slot_id].interrupt_queues[ep_id] = NULL;
-	free((void *)intrq);
+	xhci_free((void *)intrq);
 
 	/* Reset the controller's dequeue pointer and reinitialize the ring */
 	xhci_cmd_set_tr_dq(xhci, slot_id, ep_id, tr->ring, 1);
 	xhci_init_cycle_ring(tr, TRANSFER_RING_SIZE);
 }
+#endif
 
+#if 0
 /* read one intr-packet from queue, if available. extend the queue for new input.
    return NULL if nothing new available.
    Recommended use: while (data=poll_intr_queue(q)) process(data);
@@ -940,7 +938,7 @@ xhci_poll_intr_queue(void *const q)
 
 		/* Enqueue the last (spare) TRB and ring doorbell */
 		xhci_enqueue_trb(tr);
-		xhci_ring_doorbell(ep);
+		xhci_ring_doorbell(xhci, ep);
 
 		/* Reuse the current buffer for the next spare TRB */
 		xhci_clear_trb(tr->cur, tr->pcs);
@@ -968,3 +966,4 @@ xhci_poll_intr_queue(void *const q)
 
 	return reqdata;
 }
+#endif
