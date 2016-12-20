@@ -1486,6 +1486,7 @@ xhci_setup_scratchpad(struct xhci *xhci)
   if (!xhci->scratchpad_arr)
   {
     xhci_dma_free(xhci->scratchpads);
+    xhci->scratchpads = 0;
     return -1;
   }
   xhci_memset(xhci->scratchpad_arr, 0, xhci->scratchpad_arr_len);
@@ -1510,6 +1511,9 @@ xhci_setup_scratchpad(struct xhci *xhci)
 
 static void xhci_scratchpad_free(struct xhci* xhci)
 {
+  if (!xhci->num_scratch_bufs)
+    return;
+
   /* TODO: write null-pointers to HW? */
   if (xhci->scratchpad_arr)
   {
