@@ -55,6 +55,7 @@ grub_xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid,
   grub_uint32_t class;
   grub_uint32_t base, base_h;
   grub_pci_address_t addr;
+  xhci_t *xhci;
 
   grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: begin\n");
 
@@ -111,6 +112,10 @@ grub_xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid,
     		  | grub_pci_read_word(addr));
   
   grub_dprintf ("xhci", "xHCI grub_xhci_pci_iter: 32-bit xHCI OK\n");
+
+  xhci = xhci_init(base);
+  if (!xhci)
+    return -1; /* OOM */
 
   return 0;
 }
