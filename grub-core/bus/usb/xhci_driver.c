@@ -30,6 +30,8 @@
 #include <grub/disk.h>
 #include <grub/cache.h>
 
+#include "xhci.h"
+
 GRUB_MOD_LICENSE ("GPLv3+");
 
 /* This simple GRUB implementation of xHCI driver:

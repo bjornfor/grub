@@ -29,8 +29,8 @@
 
 //#define USB_DEBUG
 
-#include <usb/usb.h>
-#include "generic_hub.h"
+//#include <usb/usb.h>
+//#include "generic_hub.h"
 #include "xhci_private.h"
 #include "xhci.h"
 

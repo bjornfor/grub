@@ -585,7 +585,7 @@ module = {
   common = bus/usb/xhci_commands.c;
   common = bus/usb/xhci_devconf.c;
   common = bus/usb/xhci_events.c;
-  common = bus/usb/xhci_rh.c;
+  //common = bus/usb/xhci_rh.c;
   enable = pci;
 
   cppflags = '-I$(srcdir)/lib/posix_wrap -Wno-error=pointer-arith';

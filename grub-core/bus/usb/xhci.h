@@ -33,6 +33,8 @@
 //#include <pci.h>
 //#include <usb/usb.h>
 
+typedef struct xhci xhci_t;
+
 void xhci_start (xhci_t *const xhci);
 void xhci_stop (xhci_t *const xhci);
 void xhci_reset (xhci_t *const xhci);

@@ -542,7 +542,7 @@ void xhci_update_event_dq(xhci_t *);
 void xhci_handle_events(xhci_t *);
 int xhci_wait_for_command_aborted(xhci_t *, const trb_t *);
 int xhci_wait_for_command_done(xhci_t *, const trb_t *, int clear_event);
-int xhci_wait_for_transfer(xhci_t *, const int slot_id, const int ep_id);
+int xhci_wait_for_transfer(xhci_t *, const unsigned int slot_id, const unsigned int ep_id);
 
 void xhci_clear_trb(trb_t *, int pcs);
 

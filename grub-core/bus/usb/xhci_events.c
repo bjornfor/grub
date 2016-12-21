@@ -30,8 +30,9 @@
 //#define XHCI_SPEW_DEBUG
 
 #include <inttypes.h>
-#include <arch/virtual.h>
+//#include <arch/virtual.h>
 #include "xhci_private.h"
+#include "xhci_io.h"
 
 void
 xhci_reset_event_ring(event_ring_t *const er)
@@ -204,27 +205,27 @@ xhci_handle_events(xhci_t *const xhci)
 
 static unsigned long
 xhci_wait_for_event(const event_ring_t *const er,
-		    unsigned long *const timeout_us)
+		    unsigned long *const timeout_ms)
 {
-	while (!xhci_event_ready(er) && *timeout_us) {
-		--*timeout_us;
-		udelay(1);
+	while (!xhci_event_ready(er) && *timeout_ms) {
+		--*timeout_ms;
+		xhci_mdelay(1);
 	}
-	return *timeout_us;
+	return *timeout_ms;
 }
 
 static unsigned long
 xhci_wait_for_event_type(xhci_t *const xhci,
-		    const int trb_type,
-		    unsigned long *const timeout_us)
+		    const unsigned int trb_type,
+		    unsigned long *const timeout_ms)
 {
-	while (xhci_wait_for_event(&xhci->er, timeout_us)) {
+	while (xhci_wait_for_event(&xhci->er, timeout_ms)) {
 		if (TRB_GET(TT, xhci->er.cur) == trb_type)
 			break;
 
 		xhci_handle_event(xhci);
 	}
-	return *timeout_us;
+	return *timeout_ms;
 }
 
 /* returns cc of command in question (pointed to by `address`) */
@@ -236,15 +237,15 @@ xhci_wait_for_command_aborted(xhci_t *const xhci, const trb_t *const address)
 	 * we don't get a response after 5s. Still, let the caller decide,
 	 * what to do then.
 	 */
-	unsigned long timeout_us = 5 * 1000 * 1000; /* 5s */
+	unsigned long timeout_ms = 5 * 1000; /* 5s */
 	int cc = TIMEOUT;
 	/*
 	 * Expects two command completion events:
 	 * The first with CC == COMMAND_ABORTED should point to address,
 	 * the second with CC == COMMAND_RING_STOPPED should point to new dq.
 	 */
-	while (xhci_wait_for_event_type(xhci, TRB_EV_CMD_CMPL, &timeout_us)) {
-		if ((xhci->er.cur->ptr_low == virt_to_phys(address)) &&
+	while (xhci_wait_for_event_type(xhci, TRB_EV_CMD_CMPL, &timeout_ms)) {
+		if ((xhci->er.cur->ptr_low == virt_to_phys((void*)address)) &&
 				(xhci->er.cur->ptr_high == 0)) {
 			cc = TRB_GET(CC, xhci->er.cur);
 			xhci_advance_event_ring(xhci);
@@ -253,9 +254,9 @@ xhci_wait_for_command_aborted(xhci_t *const xhci, const trb_t *const address)
 
 		xhci_handle_command_completion_event(xhci);
 	}
-	if (!timeout_us)
+	if (!timeout_ms)
 		xhci_debug("Warning: Timed out waiting for COMMAND_ABORTED.\n");
-	while (xhci_wait_for_event_type(xhci, TRB_EV_CMD_CMPL, &timeout_us)) {
+	while (xhci_wait_for_event_type(xhci, TRB_EV_CMD_CMPL, &timeout_ms)) {
 		if (TRB_GET(CC, xhci->er.cur) == CC_COMMAND_RING_STOPPED) {
 			xhci->cr.cur = phys_to_virt(xhci->er.cur->ptr_low);
 			xhci_advance_event_ring(xhci);
@@ -264,7 +265,7 @@ xhci_wait_for_command_aborted(xhci_t *const xhci, const trb_t *const address)
 
 		xhci_handle_command_completion_event(xhci);
 	}
-	if (!timeout_us)
+	if (!timeout_ms)
 		xhci_debug("Warning: Timed out "
 			   "waiting for COMMAND_RING_STOPPED.\n");
 	xhci_update_event_dq(xhci);
@@ -286,10 +287,10 @@ xhci_wait_for_command_done(xhci_t *const xhci,
 	 * take longer than 50ms (at the slave). Let's take a timeout of
 	 * 100ms.
 	 */
-	unsigned long timeout_us = 100 * 1000; /* 100ms */
+	unsigned long timeout_ms = 100;
 	int cc = TIMEOUT;
-	while (xhci_wait_for_event_type(xhci, TRB_EV_CMD_CMPL, &timeout_us)) {
-		if ((xhci->er.cur->ptr_low == virt_to_phys(address)) &&
+	while (xhci_wait_for_event_type(xhci, TRB_EV_CMD_CMPL, &timeout_ms)) {
+		if ((xhci->er.cur->ptr_low == virt_to_phys((void*)address)) &&
 				(xhci->er.cur->ptr_high == 0)) {
 			cc = TRB_GET(CC, xhci->er.cur);
 			break;
@@ -297,7 +298,7 @@ xhci_wait_for_command_done(xhci_t *const xhci,
 
 		xhci_handle_command_completion_event(xhci);
 	}
-	if (!timeout_us) {
+	if (!timeout_ms) {
 		xhci_debug("Warning: Timed out waiting for TRB_EV_CMD_CMPL.\n");
 	} else if (clear_event) {
 		xhci_advance_event_ring(xhci);
@@ -308,13 +309,13 @@ xhci_wait_for_command_done(xhci_t *const xhci,
 
 /* returns amount of bytes transferred on success, negative CC on error */
 int
-xhci_wait_for_transfer(xhci_t *const xhci, const int slot_id, const int ep_id)
+xhci_wait_for_transfer(xhci_t *const xhci, const unsigned int slot_id, const unsigned int ep_id)
 {
 	xhci_spew("Waiting for transfer on ID %d EP %d\n", slot_id, ep_id);
 	/* 3s for all types of transfers */ /* TODO: test, wait longer? */
-	unsigned long timeout_us = 3 * 1000 * 1000;
+	unsigned long timeout_ms = 3 * 1000;
 	int ret = TIMEOUT;
-	while (xhci_wait_for_event_type(xhci, TRB_EV_TRANSFER, &timeout_us)) {
+	while (xhci_wait_for_event_type(xhci, TRB_EV_TRANSFER, &timeout_ms)) {
 		if (TRB_GET(ID, xhci->er.cur) == slot_id &&
 				TRB_GET(EP, xhci->er.cur) == ep_id) {
 			ret = -TRB_GET(CC, xhci->er.cur);
@@ -326,7 +327,7 @@ xhci_wait_for_transfer(xhci_t *const xhci, const int slot_id, const int ep_id)
 
 		xhci_handle_transfer_event(xhci);
 	}
-	if (!timeout_us)
+	if (!timeout_ms)
 		xhci_debug("Warning: Timed out waiting for TRB_EV_TRANSFER.\n");
 	xhci_update_event_dq(xhci);
 	return ret;
