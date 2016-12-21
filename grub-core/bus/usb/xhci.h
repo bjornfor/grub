@@ -46,4 +46,6 @@ xhci_t *xhci_init (unsigned long physical_bar);
 
 //void xhci_rh_init (usbdev_t *dev);
 
+int xhci_num_ports(xhci_t *const xhci);
+
 #endif

@@ -45,7 +45,7 @@ typedef grub_uint32_t u32;
 typedef grub_uint64_t u64;
 typedef grub_size_t size_t;
 
-#define PRIx32 "lld" /* full stdint.h missing in GRUB */
+#define PRIx32 "ld" /* full stdint.h missing in GRUB */
 #define PRIx8 "d" /* full stdint.h missing in GRUB */
 
 /* BEGIN from coreboot/.../usb.h */

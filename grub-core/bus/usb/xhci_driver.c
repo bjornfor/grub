@@ -42,6 +42,9 @@ GRUB_MOD_LICENSE ("GPLv3+");
 
 #define GRUB_XHCI_PCI_SBRN_REG  0x60
 
+static void *xhci_list[16];
+static int xhci_list_num_elems;
+
 /* PCI iteration function... */
 static int
 grub_xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid,
@@ -117,6 +120,9 @@ grub_xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid,
   if (!xhci)
     return -1; /* OOM */
 
+  xhci_list[xhci_list_num_elems] = xhci;
+  xhci_list_num_elems++;
+
   return 0;
 }
 
@@ -125,15 +131,16 @@ grub_xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
 {
   (void)hook;
   (void)hook_data;
-  //struct grub_xhci *e;
-  //struct grub_usb_controller dev;
+  struct grub_xhci *x;
+  struct grub_usb_controller dev;
+  int i;
 
-//  for (e = ehci; e; e = e->next)
-//    {
-//      dev.data = e;
-//      if (hook (&dev, hook_data))
-//	return 1;
-//    }
+  for (i = 0, x = xhci_list[i]; x; i++)
+    {
+      dev.data = x;
+      if (hook (&dev, hook_data))
+	return 1;
+    }
 
   return 0;
 }
@@ -188,11 +195,11 @@ grub_xhci_cancel_transfer (grub_usb_controller_t dev,
 static int
 grub_xhci_hubports (grub_usb_controller_t dev)
 {
-  struct grub_xhci *e = (struct grub_xhci *) dev->data;
+  xhci_t *xhci = dev->data;
   grub_uint32_t portinfo = 0;
-  (void)e;
 
-  grub_dprintf ("xhci", "root hub ports=%d\n", portinfo);
+  portinfo = xhci_num_ports(xhci);
+  //grub_dprintf ("xhci", "root hub ports=%d\n", portinfo);
   return portinfo;
 }
 
