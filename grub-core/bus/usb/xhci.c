@@ -230,7 +230,7 @@ xhci_init (unsigned long physical_bar)
 	 */
 	const size_t max_sp_bufs = xhci->capreg->Max_Scratchpad_Bufs_Hi << 5 |
 				   xhci->capreg->Max_Scratchpad_Bufs_Lo;
-	xhci_debug("max scratchpad bufs: 0x%zx\n", max_sp_bufs);
+	xhci_debug("max scratchpad bufs: 0x%x\n", max_sp_bufs);
 	if (max_sp_bufs) {
 		const size_t sp_ptrs_size = max_sp_bufs * sizeof(u64);
 		xhci->sp_ptrs = xhci_align(64, sp_ptrs_size);
