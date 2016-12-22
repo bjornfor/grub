@@ -190,7 +190,7 @@ xhci_init (unsigned long physical_bar)
 	xhci->opreg	= (void *)(((char *)xhci->capreg) + xhci->capreg->caplength);
 	xhci->hcrreg	= (void *)(((char *)xhci->capreg) + xhci->capreg->rtsoff);
 	xhci->dbreg	= (void *)(((char *)xhci->capreg) + xhci->capreg->dboff);
-	xhci_debug("regbase: 0x%"PRIx32"\n", (unsigned int)physical_bar);
+	xhci_debug("regbase: 0x%"PRIx32"\n", physical_bar);
 	xhci_debug("caplen:  0x%"PRIx32"\n", xhci->capreg->caplength);
 	xhci_debug("rtsoff:  0x%"PRIx32"\n", xhci->capreg->rtsoff);
 	xhci_debug("dboff:   0x%"PRIx32"\n", xhci->capreg->dboff);
