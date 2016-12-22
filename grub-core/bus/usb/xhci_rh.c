@@ -32,12 +32,12 @@
 //#include <usb/usb.h>
 //#include "generic_hub.h"
 #include "xhci_private.h"
+#include "xhci_io.h"
 #include "xhci.h"
 
-static int
-xhci_rh_hub_status_changed(usbdev_t *const dev)
+int
+xhci_rh_hub_status_changed(xhci_t *const xhci)
 {
-	xhci_t *const xhci = XHCI_INST(dev->controller);
 	const int changed = !!(xhci->opreg->usbsts & USBSTS_PCD);
 	if (changed)
 		xhci->opreg->usbsts =
@@ -45,10 +45,9 @@ xhci_rh_hub_status_changed(usbdev_t *const dev)
 	return changed;
 }
 
-static int
-xhci_rh_port_status_changed(usbdev_t *const dev, const int port)
+int
+xhci_rh_port_status_changed(xhci_t *const xhci, const int port)
 {
-	xhci_t *const xhci = XHCI_INST(dev->controller);
 	volatile u32 *const portsc = &xhci->opreg->prs[port - 1].portsc;
 
 	const int changed = !!(*portsc & (PORTSC_CSC | PORTSC_PRC));
@@ -57,37 +56,33 @@ xhci_rh_port_status_changed(usbdev_t *const dev, const int port)
 	return changed;
 }
 
-static int
-xhci_rh_port_connected(usbdev_t *const dev, const int port)
+int
+xhci_rh_port_connected(xhci_t *const xhci, const int port)
 {
-	xhci_t *const xhci = XHCI_INST(dev->controller);
 	volatile u32 *const portsc = &xhci->opreg->prs[port - 1].portsc;
 
 	return *portsc & PORTSC_CCS;
 }
 
-static int
-xhci_rh_port_in_reset(usbdev_t *const dev, const int port)
+int
+xhci_rh_port_in_reset(xhci_t *const xhci, const int port)
 {
-	xhci_t *const xhci = XHCI_INST(dev->controller);
 	volatile u32 *const portsc = &xhci->opreg->prs[port - 1].portsc;
 
 	return !!(*portsc & PORTSC_PR);
 }
 
-static int
-xhci_rh_port_enabled(usbdev_t *const dev, const int port)
+int
+xhci_rh_port_enabled(xhci_t *const xhci, const int port)
 {
-	xhci_t *const xhci = XHCI_INST(dev->controller);
 	volatile u32 *const portsc = &xhci->opreg->prs[port - 1].portsc;
 
 	return !!(*portsc & PORTSC_PED);
 }
 
-static usb_speed
-xhci_rh_port_speed(usbdev_t *const dev, const int port)
+usb_speed
+xhci_rh_port_speed(xhci_t *const xhci, const int port)
 {
-	xhci_t *const xhci = XHCI_INST(dev->controller);
 	volatile u32 *const portsc = &xhci->opreg->prs[port - 1].portsc;
 
 	if (*portsc & PORTSC_PED) {
@@ -100,18 +95,36 @@ xhci_rh_port_speed(usbdev_t *const dev, const int port)
 }
 
 static int
-xhci_rh_reset_port(usbdev_t *const dev, const int port)
+wait_for_port(xhci_t *const xhci, const int port,
+			  const int wait_for,
+			  int (*const port_op)(xhci_t *, int),
+			  int timeout_steps, const int step_ms)
 {
-	xhci_t *const xhci = XHCI_INST(dev->controller);
+	int state;
+	do {
+		state = port_op(xhci, port);
+		if (state < 0)
+			return -1;
+		else if (!!state == wait_for)
+			return timeout_steps;
+		xhci_mdelay(step_ms);
+		--timeout_steps;
+	} while (timeout_steps);
+	return 0;
+}
+
+int
+xhci_rh_reset_port(xhci_t *const xhci, const int port)
+{
 	volatile u32 *const portsc = &xhci->opreg->prs[port - 1].portsc;
 
 	/* Trigger port reset. */
 	*portsc = (*portsc & PORTSC_RW_MASK) | PORTSC_PR;
 
 	/* Wait for port_in_reset == 0, up to 150 * 1000us = 150ms */
-	if (generic_hub_wait_for_port(dev, port, 0, xhci_rh_port_in_reset,
+	if (wait_for_port(xhci, port, 0, xhci_rh_port_in_reset,
 				      150, 1000) == 0)
-		usb_debug("xhci_rh: Reset timed out at port %d\n", port);
+		xhci_debug("xhci_rh: Reset timed out at port %d\n", port);
 	else
 		/* Clear reset status bits, since port is out of reset. */
 		*portsc = (*portsc & PORTSC_RW_MASK) | PORTSC_PRC | PORTSC_WRC;
@@ -119,11 +132,10 @@ xhci_rh_reset_port(usbdev_t *const dev, const int port)
 	return 0;
 }
 
-static int
-xhci_rh_enable_port(usbdev_t *const dev, int port)
+int
+xhci_rh_enable_port(xhci_t *const xhci, int port)
 {
-	if (IS_ENABLED(CONFIG_LP_USB_XHCI_MTK_QUIRK)) {
-		xhci_t *const xhci = XHCI_INST(dev->controller);
+	if (1 /*IS_ENABLED(CONFIG_LP_USB_XHCI_MTK_QUIRK)*/) {
 		volatile u32 *const portsc =
 			&xhci->opreg->prs[port - 1].portsc;
 
@@ -136,32 +148,11 @@ xhci_rh_enable_port(usbdev_t *const dev, int port)
 	return 0;
 }
 
-
-static const generic_hub_ops_t xhci_rh_ops = {
-	.hub_status_changed	= xhci_rh_hub_status_changed,
-	.port_status_changed	= xhci_rh_port_status_changed,
-	.port_connected		= xhci_rh_port_connected,
-	.port_in_reset		= xhci_rh_port_in_reset,
-	.port_enabled		= xhci_rh_port_enabled,
-	.port_speed		= xhci_rh_port_speed,
-	.enable_port		= xhci_rh_enable_port,
-	.disable_port		= NULL,
-	.start_port_reset	= NULL,
-	.reset_port		= xhci_rh_reset_port,
-};
-
 void
-xhci_rh_init (usbdev_t *dev)
+xhci_rh_init (xhci_t *const xhci)
 {
-	/* we can set them here because a root hub _really_ shouldn't
-	   appear elsewhere */
-	dev->address = 0;
-	dev->hub = -1;
-	dev->port = -1;
-
 	const int num_ports = /* TODO: maybe we need to read extended caps */
-		(XHCI_INST(dev->controller)->capreg->hcsparams1 >> 24) & 0xff;
-	generic_hub_init(dev, num_ports, &xhci_rh_ops);
+		(xhci->capreg->hcsparams1 >> 24) & 0xff;
 
-	usb_debug("xHCI: root hub init done\n");
+	xhci_debug("xHCI: root hub init done\n");
 }

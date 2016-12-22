@@ -36,6 +36,8 @@
 //#include <arch/barrier.h>
 //#include <kconfig.h>
 
+#include "xhci.h"
+
 /* Glue needed to build as part of GRUB */
 #include <grub/types.h>
 
@@ -70,10 +72,6 @@ typedef struct {
 	int interval; /* expressed as binary logarithm of the number
 			 of microframes (i.e. t = 125us * 2^interval) */
 } endpoint_t;
-
-typedef enum {
-	FULL_SPEED = 0, LOW_SPEED = 1, HIGH_SPEED = 2, SUPER_SPEED = 3,
-} usb_speed;
 
 /* END from coreboot/.../usb.h */
 

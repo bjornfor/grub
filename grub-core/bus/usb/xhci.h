@@ -33,6 +33,11 @@
 //#include <pci.h>
 //#include <usb/usb.h>
 
+typedef enum {
+	FULL_SPEED = 0, LOW_SPEED = 1, HIGH_SPEED = 2, SUPER_SPEED = 3,
+} usb_speed;
+
+
 typedef struct xhci xhci_t;
 
 void xhci_start (xhci_t *const xhci);
@@ -47,5 +52,32 @@ xhci_t *xhci_init (unsigned long physical_bar);
 //void xhci_rh_init (usbdev_t *dev);
 
 int xhci_num_ports(xhci_t *const xhci);
+
+int
+xhci_rh_hub_status_changed(xhci_t *const xhci);
+
+int
+xhci_rh_port_status_changed(xhci_t *const xhci, const int port);
+
+int
+xhci_rh_port_connected(xhci_t *const xhci, const int port);
+
+int
+xhci_rh_port_in_reset(xhci_t *const xhci, const int port);
+
+int
+xhci_rh_port_enabled(xhci_t *const xhci, const int port);
+
+usb_speed
+xhci_rh_port_speed(xhci_t *const xhci, const int port);
+
+int
+xhci_rh_reset_port(xhci_t *const xhci, const int port);
+
+int
+xhci_rh_enable_port(xhci_t *const xhci, int port);
+
+void
+xhci_rh_init (xhci_t *const xhci);
 
 #endif
