@@ -113,6 +113,64 @@ wait_for_port(xhci_t *const xhci, const int port,
 	return 0;
 }
 
+static int
+hub_debounce(xhci_t *xhci, const int port)
+{
+	const int step_ms	= 1;	/* linux uses 25ms, we're busy anyway */
+	const int at_least_ms	= 100;	/* 100ms as in usb20 spec 9.1.2 */
+	const int timeout_ms	= 1500;	/* linux uses this value */
+
+	int total_ms = 0;
+	int stable_ms = 0;
+	while (stable_ms < at_least_ms && total_ms < timeout_ms) {
+		xhci_mdelay(step_ms);
+
+		const int changed = xhci_rh_port_status_changed(xhci, port);
+		const int connected = xhci_rh_port_connected(xhci, port);
+		if (changed < 0 || connected < 0)
+			return -1;
+
+		if (!changed && connected) {
+			stable_ms += step_ms;
+		} else {
+			xhci_debug("generic_hub: Unstable connection at %d\n",
+					port);
+			stable_ms = 0;
+		}
+		total_ms += step_ms;
+	}
+	if (total_ms >= timeout_ms)
+		xhci_debug("generic_hub: Debouncing timed out at %d\n", port);
+	return 0; /* ignore timeouts, try to always go on */
+}
+
+int
+xhci_rh_attach_dev(xhci_t *xhci, const int port)
+{
+	if (hub_debounce(xhci, port) < 0)
+		return -1;
+
+	if (xhci_rh_reset_port(xhci, port) < 0)
+		return -1;
+	/* after reset the port will be enabled automatically */
+	const int ret = wait_for_port(
+			/* time out after 1,000 * 10us = 10ms */
+			xhci, port, 1, xhci_rh_port_enabled, 1000, 10);
+	if (ret < 0)
+		return -1;
+	else if (!ret)
+		xhci_debug("generic_hub: Port %d still "
+				"disabled after 10ms\n", port);
+
+	const usb_speed speed = xhci_rh_port_speed(xhci, port);
+	if (speed >= 0) {
+		xhci_debug("generic_hub: Success at port %d\n", port);
+		xhci_mdelay(10); /* Reset recovery time
+			       (usb20 spec 7.1.7.5) */
+	}
+	return 0;
+}
+
 int
 xhci_rh_reset_port(xhci_t *const xhci, const int port)
 {
@@ -151,8 +209,43 @@ xhci_rh_enable_port(xhci_t *const xhci, int port)
 void
 xhci_rh_init (xhci_t *const xhci)
 {
-	const int num_ports = /* TODO: maybe we need to read extended caps */
-		(xhci->capreg->hcsparams1 >> 24) & 0xff;
+	(void)xhci;
+	//const int num_ports = /* TODO: maybe we need to read extended caps */
+		//(xhci->capreg->hcsparams1 >> 24) & 0xff;
 
 	xhci_debug("xHCI: root hub init done\n");
+}
+
+int
+xhci_rh_hub_scanport(xhci_t *xhci, const int port)
+{
+	if (xhci_rh_port_connected(xhci, port)) {
+		xhci_debug("generic_hub: Attachment at port %d\n", port);
+
+		return xhci_rh_attach_dev(xhci, port);
+	} else {
+		xhci_debug("generic_hub: Detachment at port %d\n", port);
+	}
+
+	return 0;
+}
+
+void
+xhci_rh_hub_poll(xhci_t *const xhci)
+{
+	if (xhci_rh_hub_status_changed(xhci) != 1)
+		return;
+
+	int port;
+	int num_ports = (xhci->capreg->hcsparams1 >> 24) & 0xff;
+	for (port = 1; port <= num_ports; ++port) {
+		const int ret = xhci_rh_port_status_changed(xhci, port);
+		if (ret < 0) {
+			return;
+		} else if (ret == 1) {
+			xhci_debug("generic_hub: Port change at %d\n", port);
+			if (xhci_rh_hub_scanport(xhci, port) < 0)
+				return;
+		}
+	}
 }

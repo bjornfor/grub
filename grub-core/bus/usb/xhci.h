@@ -72,6 +72,9 @@ usb_speed
 xhci_rh_port_speed(xhci_t *const xhci, const int port);
 
 int
+xhci_rh_attach_dev(xhci_t *xhci, const int port);
+
+int
 xhci_rh_reset_port(xhci_t *const xhci, const int port);
 
 int
@@ -79,5 +82,11 @@ xhci_rh_enable_port(xhci_t *const xhci, int port);
 
 void
 xhci_rh_init (xhci_t *const xhci);
+
+int
+xhci_rh_hub_scanport(xhci_t *xhci, const int port);
+
+void
+xhci_rh_hub_poll(xhci_t *const xhci);
 
 #endif

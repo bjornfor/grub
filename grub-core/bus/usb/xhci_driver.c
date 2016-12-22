@@ -123,15 +123,17 @@ grub_xhci_pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid,
   xhci_list[xhci_list_num_elems] = xhci;
   xhci_list_num_elems++;
 
+  grub_dprintf ("xhci", "xHCI controller %04x registered OK\n", pciid);
+
+  xhci_start(xhci);
+
   return 0;
 }
 
 static int
 grub_xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
 {
-  (void)hook;
-  (void)hook_data;
-  struct grub_xhci *x;
+  xhci_t *x;
   struct grub_usb_controller dev;
   int i;
 
@@ -152,12 +154,13 @@ grub_xhci_setup_transfer (grub_usb_controller_t dev,
 {
   (void)dev;
   (void)transfer;
-  //struct grub_xhci *e = (struct grub_xhci *) dev->data;
+  //xhci_t *xhci = dev->data;
   //int i;
   //struct grub_xhci_transfer_controller_data *cdata;
   //grub_uint32_t status;
 
-  return GRUB_USB_ERR_NONE;
+  grub_dprintf ("xhci", "setup_transfer\n");
+  return GRUB_USB_ERR_INTERNAL;
 }
 
 static grub_usb_err_t
@@ -175,6 +178,7 @@ grub_xhci_check_transfer (grub_usb_controller_t dev,
 //		"check_transfer: EHCI STATUS=%08x, cdata=%p, qh=%p\n",
 //		grub_xhci_oper_read32 (e, GRUB_EHCI_STATUS),
 //		cdata, cdata->qh_virt);
+  grub_dprintf ("xhci", "check_transfer\n");
   return GRUB_USB_ERR_WAIT;
 }
 
@@ -200,7 +204,7 @@ grub_xhci_hubports (grub_usb_controller_t dev)
   grub_uint32_t portinfo = 0;
 
   portinfo = xhci_num_ports(xhci);
-  //grub_dprintf ("xhci", "root hub ports=%d\n", portinfo);
+  grub_dprintf ("xhci", "root hub ports=%d\n", portinfo);
   return portinfo;
 }
 
@@ -208,25 +212,64 @@ static grub_usb_err_t
 grub_xhci_portstatus (grub_usb_controller_t dev,
 		      unsigned int port, unsigned int enable)
 {
-  struct grub_xhci *e = (struct grub_xhci *) dev->data;
-  (void)e;
+  xhci_t *xhci = dev->data;
   (void)port;
   (void)enable;
 
 //  grub_dprintf ("xhci", "portstatus: EHCI STATUS: %08x\n",
 //		grub_xhci_oper_read32 (e, GRUB_EHCI_STATUS));
+
+  grub_dprintf ("xhci", "portstatus: port=%d, enable=%d\n", port, enable);
+  //xhci_rh_reset_port(xhci, port);
+  if (enable)
+	{
+		xhci_rh_enable_port(xhci, port);
+		//grub_millisleep(500);
+	}
+
   return GRUB_USB_ERR_NONE;
 }
 
 static grub_usb_speed_t
 grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
 {
-  struct grub_xhci *e = (struct grub_xhci *) dev->data;
-  (void)e;
+  xhci_t *xhci = dev->data;
   (void)port;
   (void)changed;
+  grub_usb_speed_t grub_speed = GRUB_USB_SPEED_NONE;
+  int rc = -1;
 
-  return GRUB_USB_SPEED_NONE;
+  //grub_dprintf ("xhci", "detect_dev: port=%d\n", port);
+  *changed = xhci_rh_port_status_changed(xhci, port);
+  if (*changed)
+  {
+    rc = xhci_rh_hub_scanport(xhci, port);
+  }
+
+  (void)rc;
+
+  if (*changed && xhci_rh_port_connected(xhci, port))
+  {
+    usb_speed speed = xhci_rh_port_speed(xhci, port);
+    grub_dprintf("xhci", "port %d has device with speed %d\n", port, speed);
+    switch (speed)
+    {
+      case LOW_SPEED:
+        grub_speed = GRUB_USB_SPEED_LOW;
+        break;
+      case FULL_SPEED:
+        grub_speed = GRUB_USB_SPEED_FULL;
+        break;
+      case HIGH_SPEED:
+        grub_speed = GRUB_USB_SPEED_HIGH;
+        break;
+      case SUPER_SPEED:
+        grub_dprintf("xhci", "TODO: super speed\n");
+        break;
+    }
+  }
+
+  return grub_speed;
 }
 
 static void
