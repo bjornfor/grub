@@ -135,7 +135,8 @@ grub_xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
   struct grub_usb_controller dev;
   int i;
 
-  for (i = 0, x = xhci_list[i]; x; i++)
+  grub_dprintf ("xhci", "grub_xhci_iterate\n");
+  for (i = 0, x = xhci_list[i]; x; x = xhci_list[++i])
     {
       dev.data = x;
       if (hook (&dev, hook_data))
