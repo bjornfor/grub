@@ -154,13 +154,13 @@ xhci_rh_attach_dev(xhci_t *xhci, const int port)
 		return -1;
 	/* after reset the port will be enabled automatically */
 	const int ret = wait_for_port(
-			/* time out after 1,000 * 10us = 10ms */
-			xhci, port, 1, xhci_rh_port_enabled, 1000, 10);
+			/* time out after 50 * 1ms = 50ms */
+			xhci, port, 1, xhci_rh_port_enabled, 50, 1);
 	if (ret < 0)
 		return -1;
 	else if (!ret)
 		xhci_debug("generic_hub: Port %d still "
-				"disabled after 10ms\n", port);
+				"disabled after 50ms\n", port);
 
 	const usb_speed speed = xhci_rh_port_speed(xhci, port);
 	if (speed >= 0) {
