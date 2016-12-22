@@ -159,7 +159,40 @@ grub_xhci_setup_transfer (grub_usb_controller_t dev,
   //struct grub_xhci_transfer_controller_data *cdata;
   //grub_uint32_t status;
 
+#if 0
+struct grub_usb_transfer
+{
+  int devaddr;
+  int endpoint;
+  int size;
+  int transcnt;
+  int max;
+  grub_transaction_type_t type;
+  grub_transfer_type_t dir;
+  struct grub_usb_device *dev;
+  struct grub_usb_transaction *transactions;
+  int last_trans;
+  /* Index of last processed transaction in OHCI/UHCI driver. */
+  void *controller_data;
+  /* Used when finishing transfer to copy data back.  */
+  struct grub_pci_dma_chunk *data_chunk;
+  void *data;
+};
+#endif
+
   grub_dprintf ("xhci", "setup_transfer\n");
+  grub_dprintf ("xhci", "devaddr=%d endpoint=%d size=%d transcnt=%d max=%d\n",
+      transfer->devaddr, transfer->endpoint, transfer->size, transfer->transcnt, transfer->max);
+  grub_dprintf ("xhci", "type=%s dir=%s dev=%p tran[0].pid=%d\n"
+      , (transfer->type == GRUB_USB_TRANSACTION_TYPE_BULK ? "BULK" : "CONTROL")
+      , (transfer->dir == GRUB_USB_TRANSFER_TYPE_IN ? "IN" :
+         transfer->dir == GRUB_USB_TRANSFER_TYPE_OUT ? "OUT" :
+         transfer->dir == GRUB_USB_TRANSFER_TYPE_SETUP ? "SETUP" : "unknown")
+      , transfer->dev
+      , transfer->transactions[0].pid);
+  //grub_dprintf ("xhci", "data=%02x...\n"
+  //    , ((unsigned char*)transfer->data)[0]);
+
   return GRUB_USB_ERR_INTERNAL;
 }
 
