@@ -248,10 +248,13 @@ grub_xhci_detect_dev (grub_usb_controller_t dev, int port, int *changed)
 
   (void)rc;
 
-  if (*changed && xhci_rh_port_connected(xhci, port))
+  if (xhci_rh_port_connected(xhci, port))
   {
     usb_speed speed = xhci_rh_port_speed(xhci, port);
-    grub_dprintf("xhci", "port %d has device with speed %d\n", port, speed);
+    if (*changed)
+    {
+      grub_dprintf("xhci", "port %d has device with speed %d\n", port, speed);
+    }
     switch (speed)
     {
       case LOW_SPEED:
