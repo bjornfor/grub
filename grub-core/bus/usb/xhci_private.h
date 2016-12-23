@@ -57,10 +57,6 @@ typedef grub_size_t size_t;
 //struct usbdev;
 //typedef struct usbdev usbdev_t;
 
-typedef enum { SETUP, IN, OUT } direction_t;
-typedef enum { CONTROL = 0, ISOCHRONOUS = 1, BULK = 2, INTERRUPT = 3
-} endpoint_type;
-
 typedef struct {
 	//usbdev_t *dev;
 	int address;

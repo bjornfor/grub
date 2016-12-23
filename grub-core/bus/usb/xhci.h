@@ -33,10 +33,15 @@
 //#include <pci.h>
 //#include <usb/usb.h>
 
+#include <stdint.h>
+
 typedef enum {
 	FULL_SPEED = 0, LOW_SPEED = 1, HIGH_SPEED = 2, SUPER_SPEED = 3,
 } usb_speed;
 
+typedef enum { SETUP, IN, OUT } direction_t;
+typedef enum { CONTROL = 0, ISOCHRONOUS = 1, BULK = 2, INTERRUPT = 3
+} endpoint_type;
 
 typedef struct xhci xhci_t;
 
