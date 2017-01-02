@@ -229,6 +229,13 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
   xhci_list_add(xhci);
   cur_xhci_id += 1;
 
+  /* Hack */
+  while (1)
+  {
+    usb_poll();
+    grub_millisleep (50);
+  }
+
   return 0;
 }
 
