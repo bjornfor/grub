@@ -14,6 +14,7 @@
 #include <grub/lib/arg.h> /* struct grub_arg_option */
 
 #include "xhci/usb/xhci.h"
+#include "xhci/usb/generic_hub.h"
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -230,7 +231,7 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
   cur_xhci_id += 1;
 
   /* Hack */
-  while (1)
+  while (0)
   {
     usb_poll();
     grub_millisleep (50);
@@ -308,6 +309,7 @@ setup_transfer (grub_usb_controller_t dev,
   (void)transfer;
   (void)xhci;
 
+  grub_dprintf("xhci", "%s\n", __func__);
   rc = -1; //xhci_setup_transfer(xhci);
   return rc == 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
 }
@@ -316,78 +318,105 @@ static grub_usb_err_t
 check_transfer (grub_usb_controller_t dev,
                  grub_usb_transfer_t transfer, grub_size_t *actual)
 {
-  hci_t *xhci = dev->data;
-  int rc;
+  (void)dev;
   (void)transfer;
   (void)actual;
-  (void)xhci;
 
-  rc = -1; //xhci_check_transfer(xhci);
-  return rc == 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
+  grub_dprintf("xhci", "%s\n", __func__);
+  /* We do everything in setup_transfer */
+  return GRUB_USB_ERR_NONE;
 }
 
 static grub_usb_err_t
 cancel_transfer (grub_usb_controller_t dev,
                  grub_usb_transfer_t transfer)
 {
-  hci_t *xhci = dev->data;
-  int rc;
+  (void)dev;
   (void)transfer;
-  (void)xhci;
 
-  /* TODO: convert "transfer" to something non-GRUB and pass it on */
-  rc = -1; //xhci_cancel_transfer(xhci);
-  return rc == 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
+  grub_dprintf("xhci", "%s\n", __func__);
+  /* We do everything in setup_transfer */
+  return GRUB_USB_ERR_NONE;
 }
 
 static int hubports (grub_usb_controller_t dev)
 {
-  hci_t *xhci = (hci_t *) dev->data;
+  hci_t *hci = (hci_t *) dev->data;
+  usbdev_t *roothub = hci->devices[0];
+  generic_hub_t *hub = GEN_HUB(roothub);
 
-  (void)xhci;
-  return 0; //xhci_hubports(xhci);
+  grub_dprintf("xhci", "%s: num_ports=%d\n", __func__, hub->num_ports);
+  return hub->num_ports;
 }
 
 static grub_usb_err_t
 portstatus (grub_usb_controller_t dev,
-		      unsigned int port, unsigned int enable)
+    unsigned int port, unsigned int enable)
 {
   int rc;
-  hci_t *xhci = (hci_t *) dev->data;
+  //hci_t *hci = (hci_t *) dev->data;
 
-  (void)xhci;
-  rc = -1; //xhci_portstatus(xhci, port, enable);
+  grub_dprintf("xhci", "%s: port=%d enable=%d\n", __func__, port, enable);
+  /* coreboot USB stack has already enabled all ports (and we let it handle
+   * disable too) */
+  rc = 0;
   return rc == 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
 }
 
 static grub_usb_speed_t
 detect_dev (grub_usb_controller_t dev, int port, int *changed)
 {
-  //hci_t *xhci = (hci_t *) dev->data;
-  //enum xhci_speed speed;
-  //speed = xhci_detect_dev(xhci, port, changed);
+  int status_changed;
+  int connected;
+  usb_speed speed;
+  grub_usb_speed_t grub_speed = GRUB_USB_SPEED_NONE;
+  hci_t *hci = (hci_t *) dev->data;
+  usbdev_t *roothub = hci->devices[0];
+  generic_hub_t *hub = GEN_HUB(roothub);
 
-#if 0
-  switch (speed)
+  status_changed = hub->ops->port_status_changed(roothub, port);
+  connected = hub->ops->port_connected(roothub, port);
+  if (status_changed)
   {
-    case XHCI_SPEED_NONE:
-      return GRUB_USB_SPEED_NONE;
+    *changed = 1;
 
-    case XHCI_SPEED_LOW:
-      return GRUB_USB_SPEED_LOW;
-
-    case XHCI_SPEED_FULL:
-      return GRUB_USB_SPEED_FULL;
-
-    case XHCI_SPEED_HIGH:
-      return GRUB_USB_SPEED_HIGH;
-
-    case XHCI_SPEED_SUPER:
-      return GRUB_USB_SPEED_SUPER;
+    if (connected)
+    {
+      hub->ops->reset_port(roothub, port);
+    }
   }
-#endif
 
-  return GRUB_USB_SPEED_NONE;
+  if (connected)
+  {
+    speed = hub->ops->port_speed(roothub, port);
+    switch (speed)
+    {
+      case LOW_SPEED:
+        grub_speed = GRUB_USB_SPEED_LOW;
+        break;
+
+      case FULL_SPEED:
+        grub_speed = GRUB_USB_SPEED_FULL;
+        break;
+
+      case HIGH_SPEED:
+        grub_speed = GRUB_USB_SPEED_HIGH;
+        break;
+
+      case SUPER_SPEED:
+        /* unsupported, so disable it */
+        grub_speed = GRUB_USB_SPEED_NONE;
+        break;
+    }
+  }
+
+  if (status_changed)
+  {
+    grub_dprintf("xhci", "%s: port=%d *changed=%d connected=%d speed=%d\n",
+        __func__, port, *changed, connected, grub_speed);
+  }
+
+  return grub_speed;
 }
 
 static struct grub_usb_controller_dev usb_controller_dev = {
