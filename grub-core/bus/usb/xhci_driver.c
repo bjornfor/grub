@@ -26,6 +26,7 @@ struct grub_preboot *preboot_hook;
 static unsigned int cur_xhci_id;
 static hci_t *xhci_list[16];
 static size_t xhci_list_num_elems;
+static usbdev_t *last_dev = NULL;
 
 static hci_t *xhci_list_first(int *iter)
 {
@@ -304,13 +305,42 @@ static grub_usb_err_t
 setup_transfer (grub_usb_controller_t dev,
                  grub_usb_transfer_t transfer)
 {
-  hci_t *xhci = dev->data;
-  int rc;
+  (void)dev;
   (void)transfer;
-  (void)xhci;
+  int rc = -1;
+#if 0
+  hci_t *hci = (hci_t *) dev->data;
+  usbdev_t *roothub = hci->devices[0];
+  generic_hub_t *hub = GEN_HUB(roothub);
+  int rc = -1;
+  /* "u" prefix for coreboot usb stack */
+  direction_t udir =
+       (transfer->dir == GRUB_USB_TRANSFER_TYPE_IN) ? IN
+    : ((transfer->dir == GRUB_USB_TRANSFER_TYPE_OUT) ? OUT
+    : SETUP);
+  usbdev_t *udev;
+  int udrlen = 0;
+  int udalen = 0;
 
   grub_dprintf("xhci", "%s\n", __func__);
-  rc = -1; //xhci_setup_transfer(xhci);
+
+  if (transfer->type == GRUB_USB_TRANSACTION_TYPE_CONTROL)
+  {
+    /* TODO: create udev */
+    // transfer->addr is already a USB address/slot_id we can use, but we have
+    // to put it into xhci stack somehow
+    hci->control(udev, udir, udrlen, udevreq, udalen, usrc);
+  }
+  else if (transfer->type == GRUB_USB_TRANSACTION_TYPE_BULK)
+  {
+  }
+  else
+  {
+    /* Unsupported */
+    rc = -1;
+  }
+#endif
+
   return rc == 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
 }
 
@@ -339,6 +369,60 @@ cancel_transfer (grub_usb_controller_t dev,
   return GRUB_USB_ERR_NONE;
 }
 
+static grub_usb_err_t
+control_transfer (grub_usb_device_t dev,
+		      grub_uint8_t reqtype,
+		      grub_uint8_t request,
+		      grub_uint16_t value,
+		      grub_uint16_t index,
+		      grub_size_t size0, char *data_in)
+{
+  hci_t *hci = (hci_t *) dev->controller.data;
+  int ret = 0;
+  dev_req_t dr;
+  (void)dr;
+  (void)hci;
+  direction_t dir = (reqtype & 128) ? IN : OUT;
+  (void)dir;
+  (void)dev;
+  (void)reqtype;
+  (void)request;
+  (void)value;
+  (void)index;
+  (void)size0;
+  (void)data_in;
+
+  //grub_dprintf("xhci", "%s\n", __func__);
+
+  dr.bmRequestType = reqtype;
+  dr.bRequest = request;
+  dr.wValue = value;
+  dr.wIndex = index;
+  dr.wLength = size0;
+
+  int slot_id = last_dev->address;
+
+  /* xHCI controllers are made so that *they* set the device address. This
+   * conflicts with the GRUB USB driver which assumes it can set the device
+   * address by doing a control message.
+   * We work around that by "capturing" the SET_ADDRESS message and updates the
+   * GRUB data structures.
+   */
+  if (request == GRUB_USB_REQ_SET_ADDRESS)
+  {
+    /* FIXME: Must find a way to tell GRUB about the address */
+    /* setting the address is already handled by xHC */
+    grub_dprintf("xhci", "warning: bypassing SET_ADDRESS %d from GRUB"
+        " (slot_id=address=%d)\n", value, slot_id);
+  }
+  else
+  {
+    ret = hci->control(hci->devices[slot_id], dir, sizeof(dr), &dr, size0,
+        (unsigned char*)data_in);
+  }
+  return ret >= 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
+}
+
 static int hubports (grub_usb_controller_t dev)
 {
   hci_t *hci = (hci_t *) dev->data;
@@ -353,12 +437,12 @@ static grub_usb_err_t
 portstatus (grub_usb_controller_t dev,
     unsigned int port, unsigned int enable)
 {
-  int rc;
   //hci_t *hci = (hci_t *) dev->data;
+  int rc;
 
   grub_dprintf("xhci", "%s: port=%d enable=%d\n", __func__, port, enable);
-  /* coreboot USB stack has already enabled all ports (and we let it handle
-   * disable too) */
+  /* Enabling/disabled is handled in detect_dev (easier to match with Coreboot
+   * xHCI driver) */
   rc = 0;
   return rc == 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
 }
@@ -382,7 +466,30 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
 
     if (connected)
     {
+      /* GRUB (usually) handles debouncing (stable power), but here we let the
+       * xHCI driver do that itself. Also, let it set the device address,
+       * something GRUB typically does.g. for EHCI). XHCI controllers are
+       * written that way; *they* set the device address and the host software
+       * reads the address back from the controller HW.
+       *
+       * Because of how the Coreboot xHCI driver is written, and that we want
+       * to change it as little as possible (maintainability), it just seems
+       * (way) simpler this way. We have to pay attention to filter out control
+       * messages of SET_ADDRESS type from GRUB. We have to go just low enough
+       * into the Coreboot driver so that we can register the device without it
+       * getting to the point where it complains about missing driver support
+       * for USB class XYZ.
+       */
+      if (generic_hub_debounce(roothub, port) < 0)
+        return GRUB_USB_SPEED_NONE;
+
       hub->ops->reset_port(roothub, port);
+      speed = hub->ops->port_speed(roothub, port);
+      /* set_address() "bypasses" GRUB (it sends control messages) */
+      usbdev_t *udev = hci->set_address(hci, speed, port, roothub->address);
+      (void)udev;
+      last_dev = udev;
+      //grub_dprintf("xhci", "ep[0].maxpacketsize: %d\n", udev->endpoints[0].maxpacketsize);
     }
   }
 
@@ -405,6 +512,7 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
 
       case SUPER_SPEED:
         /* unsupported, so disable it */
+        grub_printf("warning: USB 3.0 devices are unsupported\n");
         grub_speed = GRUB_USB_SPEED_NONE;
         break;
     }
@@ -432,6 +540,7 @@ static struct grub_usb_controller_dev usb_controller_dev = {
   .cancel_transfer = cancel_transfer, /* called if/when check_transfer has
                                             * failed over a period of time
                                             */
+  .control_transfer = control_transfer,
   .hubports = hubports,
   .portstatus = portstatus,
   .detect_dev = detect_dev,
