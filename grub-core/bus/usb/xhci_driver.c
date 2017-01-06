@@ -23,10 +23,22 @@ GRUB_MOD_LICENSE ("GPLv3+");
 static grub_extcmd_t cmd_xhci_status;
 struct grub_preboot *preboot_hook;
 
+/* xHC's set device addresses. But GRUB also want to do that!
+ * This adds an address mapping between GRUB and xHCI driver to keep everyone
+ * happy and not confused about the addresses.
+ * The index is the device address from GRUB, the value is the address assigned
+ * by xHC. */
+int usbdev_xhc_addr[128];
+/* Hack: remember the current device between detect_dev and control_transfer,
+ * so that we know which device to talk to.
+ * Possible fix: create a "super" structure with two fields: hci_t and usbdev_t
+ */
+static usbdev_t *last_detected_dev = NULL;
+
+/* List of found xHCI controllers */
 static unsigned int cur_xhci_id;
 static hci_t *xhci_list[16];
 static size_t xhci_list_num_elems;
-static usbdev_t *last_dev = NULL;
 
 static hci_t *xhci_list_first(int *iter)
 {
@@ -379,20 +391,9 @@ control_transfer (grub_usb_device_t dev,
 {
   hci_t *hci = (hci_t *) dev->controller.data;
   int ret = 0;
+  int slot_id; /* the xHC slot used for addressing the device (assigned by xHC) */
   dev_req_t dr;
-  (void)dr;
-  (void)hci;
   direction_t dir = (reqtype & 128) ? IN : OUT;
-  (void)dir;
-  (void)dev;
-  (void)reqtype;
-  (void)request;
-  (void)value;
-  (void)index;
-  (void)size0;
-  (void)data_in;
-
-  //grub_dprintf("xhci", "%s\n", __func__);
 
   dr.bmRequestType = reqtype;
   dr.bRequest = request;
@@ -400,20 +401,28 @@ control_transfer (grub_usb_device_t dev,
   dr.wIndex = index;
   dr.wLength = size0;
 
-  int slot_id = last_dev->address;
-
   /* xHCI controllers are made so that *they* set the device address. This
    * conflicts with the GRUB USB driver which assumes it can set the device
    * address by doing a control message.
-   * We work around that by "capturing" the SET_ADDRESS message and updates the
-   * GRUB data structures.
+   * We work around that by (1) using a temporary global variable,
+   * last_detected_dev, until GRUB tells us the address for the newly connected
+   * device. Then we store the GRUB -> xHC address mapping for later.
    */
+  if (dev->initialized)
+  {
+    slot_id = usbdev_xhc_addr[dev->addr];
+  }
+  else
+  {
+    slot_id = last_detected_dev->address;
+  }
+
   if (request == GRUB_USB_REQ_SET_ADDRESS)
   {
-    /* FIXME: Must find a way to tell GRUB about the address */
-    /* setting the address is already handled by xHC */
-    grub_dprintf("xhci", "warning: bypassing SET_ADDRESS %d from GRUB"
-        " (slot_id=address=%d)\n", value, slot_id);
+    /* Setting the address has already been handled by xHC */
+    grub_dprintf("xhci", "creating address map from GRUB to xHC: %d -> %d\n",
+        value, slot_id);
+    usbdev_xhc_addr[value] = slot_id;
   }
   else
   {
@@ -468,12 +477,12 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
     {
       /* GRUB (usually) handles debouncing (stable power), but here we let the
        * xHCI driver do that itself. Also, let it set the device address,
-       * something GRUB typically does.g. for EHCI). XHCI controllers are
+       * something GRUB typically does (e.g. for EHCI). XHCI controllers are
        * written that way; *they* set the device address and the host software
        * reads the address back from the controller HW.
        *
        * Because of how the Coreboot xHCI driver is written, and that we want
-       * to change it as little as possible (maintainability), it just seems
+       * to change it as little as possible (maintainability), it seems
        * (way) simpler this way. We have to pay attention to filter out control
        * messages of SET_ADDRESS type from GRUB. We have to go just low enough
        * into the Coreboot driver so that we can register the device without it
@@ -485,10 +494,10 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
 
       hub->ops->reset_port(roothub, port);
       speed = hub->ops->port_speed(roothub, port);
-      /* set_address() "bypasses" GRUB (it sends control messages) */
+      /* set_address() "bypasses" GRUB (it sends SET_ADDRESS and GET_DESCRIPTOR
+       * control messages). Those extra messages do no harm. */
       usbdev_t *udev = hci->set_address(hci, speed, port, roothub->address);
-      (void)udev;
-      last_dev = udev;
+      last_detected_dev = udev;
       //grub_dprintf("xhci", "ep[0].maxpacketsize: %d\n", udev->endpoints[0].maxpacketsize);
     }
   }
@@ -552,9 +561,15 @@ static struct grub_usb_controller_dev usb_controller_dev = {
 GRUB_MOD_INIT (xhci)
 {
   //dbg ("[loading]\n");
+  int i;
 
   xhci_list_num_elems = 0;
   cur_xhci_id = 0;
+
+  for (i = 0; i < sizeof(usbdev_xhc_addr) / sizeof(usbdev_xhc_addr[0]); i++)
+  {
+    usbdev_xhc_addr[i] = -1;
+  }
 
   grub_stop_disk_firmware ();
   grub_boot_time ("Initing xHCI hardware");
