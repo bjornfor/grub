@@ -256,13 +256,16 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
 static grub_err_t
 xhci_fini_hw (int noreturn __attribute__ ((unused)))
 {
-  hci_t *xhci;
+  hci_t *hci;
   int iter;
 
   /* We should disable all xHCI HW to prevent any DMA access etc. */
-  for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
-    //xhci_destroy(xhci);
-    ;
+  for (hci = xhci_list_first(&iter); hci; hci = xhci_list_next(&iter))
+  {
+    /* FIXME: this segfault + reboots machine */
+    //grub_dprintf ("xhci", "shutting down controller %p\n", hci);
+    //hci->shutdown(hci);
+  }
 
   return GRUB_ERR_NONE;
 }
