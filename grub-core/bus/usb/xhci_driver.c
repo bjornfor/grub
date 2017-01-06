@@ -437,6 +437,50 @@ control_transfer (grub_usb_device_t dev,
   return ret >= 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
 }
 
+static grub_usb_err_t
+bulk_transfer (grub_usb_device_t dev,
+			 struct grub_usb_desc_endp *endpoint,
+			 grub_size_t size, char *data_in,
+			 grub_transfer_type_t type, int timeout,
+			 grub_size_t *actual)
+{
+  hci_t *hci = (hci_t *) dev->controller.data;
+  int ret = -1;
+  int slot_id = -1;
+
+  /* add the printout from GRUB USB stack that we "shorted out" by implementing
+   * bulk_transfer callback */
+  grub_dprintf ("usb", "bulk: size=0x%02lx type=%d\n", (unsigned long) size,
+      type);
+
+  if (!dev->initialized)
+  {
+    grub_printf("err: bulk_transfer device structure not initialized\n");
+    grub_millisleep(60000);
+    return GRUB_USB_ERR_INTERNAL;
+  }
+
+  slot_id = usbdev_xhc_addr[dev->addr];
+  usbdev_t *udevf = hci->devices[slot_id];
+  /* Only the first endpoint (ep0) is initialized by the coreboot driver (since
+   * we bypassed large part of it). The reset we'll have set up now, based on
+   * data from GRUB.
+   */
+  endpoint_t *ep = &udevf->endpoints[endpoint->endp_addr & 0x7f];
+
+  ep->dev = udevf;
+  ep->maxpacketsize = endpoint->maxpacket;
+  ep->direction = (endpoint->endp_addr & 0x80) ? IN : OUT;
+  ep->interval = endpoint->interval;
+  ep->endpoint = endpoint->endp_addr;
+  ep->dev->address = slot_id;
+
+  ret = hci->bulk(ep, size, (unsigned char *)data_in, 0);
+  *actual = ret >= 0 ? ret : 0;
+  grub_dprintf("xhci", "%s: ret=%d\n", __func__, ret);
+  return ret >= 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
+}
+
 static int hubports (grub_usb_controller_t dev)
 {
   hci_t *hci = (hci_t *) dev->data;
@@ -555,6 +599,7 @@ static struct grub_usb_controller_dev usb_controller_dev = {
                                             * failed over a period of time
                                             */
   .control_transfer = control_transfer,
+  .bulk_transfer = bulk_transfer,
   .hubports = hubports,
   .portstatus = portstatus,
   .detect_dev = detect_dev,
