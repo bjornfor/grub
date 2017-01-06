@@ -323,6 +323,8 @@ setup_transfer (grub_usb_controller_t dev,
   (void)dev;
   (void)transfer;
   int rc = -1;
+  grub_dprintf("xhci", "%s: should NOT be called\n", __func__);
+  grub_millisleep(60000);
 #if 0
   hci_t *hci = (hci_t *) dev->data;
   usbdev_t *roothub = hci->devices[0];
