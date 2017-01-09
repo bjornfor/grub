@@ -449,31 +449,23 @@ bulk_transfer (grub_usb_device_t dev,
   int slot_id = -1;
 
   /* add the printout from GRUB USB stack that we "shorted out" by implementing
-   * bulk_transfer callback */
+   * bulk_transfer callback
+   */
   grub_dprintf ("usb", "bulk: size=0x%02lx type=%d\n", (unsigned long) size,
       type);
 
   if (!dev->initialized)
   {
-    grub_printf("err: bulk_transfer device structure not initialized\n");
+    grub_printf("err: bulk_transfer: device structure not initialized\n");
     grub_millisleep(60000);
     return GRUB_USB_ERR_INTERNAL;
   }
 
+  /* convert from GRUB addr to xHC addr */
   slot_id = usbdev_xhc_addr[dev->addr];
-  usbdev_t *udevf = hci->devices[slot_id];
-  /* Only the first endpoint (ep0) is initialized by the coreboot driver (since
-   * we bypassed large part of it). The reset we'll have set up now, based on
-   * data from GRUB.
-   */
-  endpoint_t *ep = &udevf->endpoints[endpoint->endp_addr & 0x7f];
 
-  ep->dev = udevf;
-  ep->maxpacketsize = endpoint->maxpacket;
-  ep->direction = (endpoint->endp_addr & 0x80) ? IN : OUT;
-  ep->interval = endpoint->interval;
-  ep->endpoint = endpoint->endp_addr;
-  ep->dev->address = slot_id;
+  usbdev_t *udevf = hci->devices[slot_id];
+  endpoint_t *ep = &udevf->endpoints[endpoint->endp_addr & 0x7f];
 
   ret = hci->bulk(ep, size, (unsigned char *)data_in, 0);
   *actual = ret >= 0 ? ret : 0;
@@ -508,6 +500,7 @@ portstatus (grub_usb_controller_t dev,
 static grub_usb_speed_t
 detect_dev (grub_usb_controller_t dev, int port, int *changed)
 {
+  int ret = -1;
   int status_changed;
   int connected;
   usb_speed speed;
@@ -543,9 +536,19 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
 
       hub->ops->reset_port(roothub, port);
       speed = hub->ops->port_speed(roothub, port);
-      /* set_address() "bypasses" GRUB (it sends SET_ADDRESS and GET_DESCRIPTOR
-       * control messages). Those extra messages do no harm. */
-      usbdev_t *udev = hci->set_address(hci, speed, port, roothub->address);
+      /* set_address() bypasses GRUB (it sends SET_ADDRESS and GET_DESCRIPTOR
+       * control messages). Those extra messages do no harm.
+       * After this call the device will have an address and endpoint 0 (the
+       * data structure) have been initialized.
+       */
+      //usbdev_t *udev = hci->set_address(hci, speed, port, roothub->address);
+      ret = usb_attach_device(hci, roothub->address, port, speed);
+      if (ret < 0)
+      {
+        grub_dprintf("xhci", "Failed to attach device\n");
+      }
+      /* remember the newly attached device */
+      usbdev_t *udev = ret >= 0 ? hci->devices[ret] : NULL;
       last_detected_dev = udev;
       //grub_dprintf("xhci", "ep[0].maxpacketsize: %d\n", udev->endpoints[0].maxpacketsize);
     }
