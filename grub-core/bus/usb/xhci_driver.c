@@ -453,14 +453,10 @@ static grub_usb_err_t
 portstatus (grub_usb_controller_t dev,
     unsigned int port, unsigned int enable)
 {
-  //hci_t *hci = (hci_t *) dev->data;
-  int rc;
-
   grub_dprintf("xhci", "%s: port=%d enable=%d\n", __func__, port, enable);
   /* Enabling/disabled is handled in detect_dev (easier to match with Coreboot
    * xHCI driver) */
-  rc = 0;
-  return rc == 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
+  return GRUB_USB_ERR_NONE;
 }
 
 static grub_usb_speed_t
