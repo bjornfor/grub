@@ -685,10 +685,13 @@ usb_generic_init (usbdev_t *dev)
 		usb_generic_create(dev);
 	*/
 
+	/* For GRUB: don't detach device */
+	/*
 	if (dev->data == NULL) {
 		usb_debug("Detaching device not used by payload\n");
 		usb_detach_device(dev->controller, dev->address);
 	}
+	*/
 }
 
 /*
