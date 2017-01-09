@@ -518,6 +518,12 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
       last_detected_dev = udev;
       //grub_dprintf("xhci", "ep[0].maxpacketsize: %d\n", udev->endpoints[0].maxpacketsize);
     }
+    else
+    {
+      /* free resources */
+      usb_detach_device(hci, hub->ports[port]);
+      hub->ports[port] = NO_DEV;
+    }
   }
 
   if (connected)
