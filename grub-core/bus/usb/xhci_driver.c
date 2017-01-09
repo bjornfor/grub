@@ -502,12 +502,11 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
 
       hub->ops->reset_port(roothub, port);
       speed = hub->ops->port_speed(roothub, port);
-      /* set_address() bypasses GRUB (it sends SET_ADDRESS and GET_DESCRIPTOR
+      /* usb_attach_device() bypasses GRUB (it sends SET_ADDRESS and GET_DESCRIPTOR
        * control messages). Those extra messages do no harm.
-       * After this call the device will have an address and endpoint 0 (the
-       * data structure) have been initialized.
+       * After this call the device will have an address and all endpoints (in driver)
+       * have been initialized.
        */
-      //usbdev_t *udev = hci->set_address(hci, speed, port, roothub->address);
       ret = usb_attach_device(hci, roothub->address, port, speed);
       if (ret < 0)
       {
