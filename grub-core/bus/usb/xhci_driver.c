@@ -322,43 +322,9 @@ setup_transfer (grub_usb_controller_t dev,
 {
   (void)dev;
   (void)transfer;
-  int rc = -1;
   grub_dprintf("xhci", "%s: should NOT be called\n", __func__);
   grub_millisleep(60000);
-#if 0
-  hci_t *hci = (hci_t *) dev->data;
-  usbdev_t *roothub = hci->devices[0];
-  generic_hub_t *hub = GEN_HUB(roothub);
-  int rc = -1;
-  /* "u" prefix for coreboot usb stack */
-  direction_t udir =
-       (transfer->dir == GRUB_USB_TRANSFER_TYPE_IN) ? IN
-    : ((transfer->dir == GRUB_USB_TRANSFER_TYPE_OUT) ? OUT
-    : SETUP);
-  usbdev_t *udev;
-  int udrlen = 0;
-  int udalen = 0;
-
-  grub_dprintf("xhci", "%s\n", __func__);
-
-  if (transfer->type == GRUB_USB_TRANSACTION_TYPE_CONTROL)
-  {
-    /* TODO: create udev */
-    // transfer->addr is already a USB address/slot_id we can use, but we have
-    // to put it into xhci stack somehow
-    hci->control(udev, udir, udrlen, udevreq, udalen, usrc);
-  }
-  else if (transfer->type == GRUB_USB_TRANSACTION_TYPE_BULK)
-  {
-  }
-  else
-  {
-    /* Unsupported */
-    rc = -1;
-  }
-#endif
-
-  return rc == 0 ? GRUB_USB_ERR_NONE : GRUB_USB_ERR_INTERNAL;
+  return GRUB_USB_ERR_INTERNAL;
 }
 
 static grub_usb_err_t
@@ -369,9 +335,9 @@ check_transfer (grub_usb_controller_t dev,
   (void)transfer;
   (void)actual;
 
-  grub_dprintf("xhci", "%s\n", __func__);
-  /* We do everything in setup_transfer */
-  return GRUB_USB_ERR_NONE;
+  grub_dprintf("xhci", "%s: should NOT be called\n", __func__);
+  grub_millisleep(60000);
+  return GRUB_USB_ERR_INTERNAL;
 }
 
 static grub_usb_err_t
@@ -381,9 +347,9 @@ cancel_transfer (grub_usb_controller_t dev,
   (void)dev;
   (void)transfer;
 
-  grub_dprintf("xhci", "%s\n", __func__);
-  /* We do everything in setup_transfer */
-  return GRUB_USB_ERR_NONE;
+  grub_dprintf("xhci", "%s: should NOT be called\n", __func__);
+  grub_millisleep(60000);
+  return GRUB_USB_ERR_INTERNAL;
 }
 
 static grub_usb_err_t
