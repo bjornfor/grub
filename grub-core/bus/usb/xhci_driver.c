@@ -636,7 +636,10 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
 
       case SUPER_SPEED:
         /* unsupported, so disable it */
-        grub_dprintf("xhci", "warning: USB 3.0 devices are unsupported\n");
+        if (status_changed)
+        {
+          grub_dprintf("xhci", "warning: USB 3.0 devices are unsupported, forcing speed=NONE\n");
+        }
         grub_speed = GRUB_USB_SPEED_NONE;
         break;
     }
