@@ -604,6 +604,7 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
       {
         grub_dprintf("xhci", "Failed to attach device\n");
       }
+      hub->ports[port] = ret;
       /* remember the newly attached device */
       usbdev_t *udev = ret >= 0 ? hci->devices[ret] : NULL;
       last_detected_dev = udev;
