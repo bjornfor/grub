@@ -94,20 +94,123 @@ static const struct grub_arg_option cmd_options[] =
 
 static int get_int_arg (const struct grub_arg_list *state)
 {
-  int default_value = 0; /* if arg not set */
+  int default_value = -1; /* if arg not set */
   return (state->set ? (int)grub_strtoul (state->arg, 0, 0) : default_value);
+}
+
+static void
+print_xhci_status(hci_t *hci)
+{
+  usbdev_t *roothub = hci->devices[0];
+  generic_hub_t *hub = GEN_HUB(roothub);
+  const char *class_str;
+
+  grub_printf("num_ports: %d\n", hub->num_ports);
+  for (unsigned int addr = 1; addr < sizeof(hci->devices) / sizeof(hci->devices[0]); addr++)
+  {
+    usbdev_t *dev = hci->devices[addr];
+    if (dev)
+    {
+      /*
+       * Based on code from Coreboot usb.c. Some checks are left out because
+       * coreboot has already run them (and aborted device attach if they
+       * trigged). We only check the first interface.
+       */
+      configuration_descriptor_t *cd = dev->configuration;
+      interface_descriptor_t *intf = (interface_descriptor_t *)(((char *)cd) + sizeof(*cd));
+      int class = dev->descriptor->bDeviceClass;
+      if (class == 0)
+        class = intf->bInterfaceClass;
+
+      enum {
+        audio_device      = 0x01,
+        comm_device       = 0x02,
+        hid_device        = 0x03,
+        physical_device   = 0x05,
+        imaging_device    = 0x06,
+        printer_device    = 0x07,
+        msc_device        = 0x08,
+        hub_device        = 0x09,
+        cdc_device        = 0x0a,
+        ccid_device       = 0x0b,
+        security_device   = 0x0d,
+        video_device      = 0x0e,
+        healthcare_device = 0x0f,
+        diagnostic_device = 0xdc,
+        wireless_device   = 0xe0,
+        misc_device       = 0xef,
+      };
+      switch (class) {
+        case audio_device:
+          class_str = "audio";
+          break;
+        case comm_device:
+          class_str = "communication";
+          break;
+        case hid_device:
+          class_str = "HID";
+          break;
+        case physical_device:
+          class_str = "physical";
+          break;
+        case imaging_device:
+          class_str = "camera";
+          break;
+        case printer_device:
+          class_str = "printer";
+          break;
+        case msc_device:
+          class_str = "MSC";
+          break;
+        case hub_device:
+          class_str = "hub";
+          break;
+        case cdc_device:
+          class_str = "CDC";
+          break;
+        case ccid_device:
+          class_str = "smartcard / CCID";
+          break;
+        case security_device:
+          class_str = "content security";
+          break;
+        case video_device:
+          class_str = "video";
+          break;
+        case healthcare_device:
+          class_str = "healthcare";
+          break;
+        case diagnostic_device:
+          class_str = "diagnostic";
+          break;
+        case wireless_device:
+          class_str = "wireless";
+          break;
+        default:
+          class_str = "UNKNOWN";
+          break;
+      }
+      grub_printf("  device(vid:pid)=0x%04x:0x%04x USB %x.%02x addr=%02d class/if0=%02x (%s)\n",
+          dev->descriptor->idVendor, dev->descriptor->idProduct,
+          dev->descriptor->bcdUSB >> 8, dev->descriptor->bcdUSB & 0xff,
+          dev->address, class, class_str);
+    }
+  }
+
 }
 
 static grub_err_t
 do_cmd_xhci_status (grub_extcmd_context_t ctxt, int argc, char *argv[])
 {
   int iter;
-  hci_t *xhci;
+  hci_t *hci;
   enum op { CMD_NOP, STATUS } op;
   struct grub_arg_list *state = ctxt->state;
   int i = 0;
   int verbose     = state[i++].set;
   int id          = get_int_arg (&state[i++]);
+  (void)verbose;
+  (void)op;
 
   /* Get the operation */
   op = STATUS;
@@ -119,30 +222,29 @@ do_cmd_xhci_status (grub_extcmd_context_t ctxt, int argc, char *argv[])
     }
   }
 
-  /* Get the device */
-  for (i = 0, xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter), i++)
+  for (i = 0, hci = xhci_list_first(&iter); hci; hci = xhci_list_next(&iter), i++)
   {
-    if (i == id)
-      break;
+    if (id >= 0)
+    {
+      /* get specific device */
+      if (i == id)
+      {
+        print_xhci_status(hci);
+        break;
+      }
+    }
+    else
+    {
+      /* get all devices */
+      print_xhci_status(hci);
+    }
+
   }
 
-  if (!xhci)
+  if (id >= 0 && !hci)
   {
     grub_printf("no such device (bad --id value: %d)\n", id);
     return GRUB_ERR_UNKNOWN_DEVICE;
-  }
-
-  /* Do the operation */
-  switch (op)
-  {
-    case STATUS:
-      (void)verbose;
-      //xhci_status(xhci, verbose);
-      break;
-
-    case CMD_NOP:
-      //xhci_nop(xhci);
-      break;
   }
 
   return 0;
