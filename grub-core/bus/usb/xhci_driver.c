@@ -25,18 +25,16 @@ struct grub_preboot *preboot_hook;
 
 /* xHC's set device addresses. But GRUB also want to do that!
  * This adds an address mapping between GRUB and xHCI driver to keep everyone
- * happy and not confused about the addresses.
- * The index is the device address from GRUB, the value is the address assigned
- * by xHC. */
-int usbdev_xhc_addr[128];
-/* Hack: remember the current device between detect_dev and control_transfer,
- * so that we know which device to talk to.
- * Possible fix: create a "super" structure with two fields: hci_t and usbdev_t
+ * happy. The index is the device address from GRUB, the value is the address
+ * assigned by xHC. */
+#define MAX_USB_DEVICES 128
+int usbdev_xhc_addr[MAX_USB_DEVICES];
+/* Remember the current device between calls to detect_dev and
+ * control_transfer, so that we know which device to talk to.
  */
 static usbdev_t *last_detected_dev = NULL;
 
 /* List of found xHCI controllers */
-static unsigned int cur_xhci_id;
 static hci_t *xhci_list[16];
 static size_t xhci_list_num_elems;
 
@@ -50,16 +48,6 @@ static hci_t *xhci_list_first(int *iter)
   *iter = 0;
   return xhci_list[0];
 }
-
-//static hci_t *xhci_list_last(void)
-//{
-//  if (xhci_list_num_elems == 0)
-//  {
-//    return NULL;
-//  }
-//
-//  return xhci_list[xhci_list_num_elems - 1];
-//}
 
 static int xhci_list_add(hci_t *xhci)
 {
@@ -235,15 +223,14 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
   xhci = xhci_pci_init (pciaddr);
   if (!xhci)
     {
-      dbg ("out of memory\n");
+      grub_printf ("xhci: out of memory\n");
       return GRUB_USB_ERR_INTERNAL;
     }
 
   /* Build list of xHCI controllers */
   xhci_list_add(xhci);
-  cur_xhci_id += 1;
 
-  /* Hack */
+  /* For debug/test, run the full coreboot stack right here */
   while (0)
   {
     usb_poll();
@@ -322,6 +309,7 @@ setup_transfer (grub_usb_controller_t dev,
 {
   (void)dev;
   (void)transfer;
+  /* we replaced setup/check/cancel_transfer with control/bulk_transfer */
   grub_printf("%s: should NOT be called\n", __func__);
   grub_millisleep(60000);
   return GRUB_USB_ERR_INTERNAL;
@@ -335,6 +323,7 @@ check_transfer (grub_usb_controller_t dev,
   (void)transfer;
   (void)actual;
 
+  /* we replaced setup/check/cancel_transfer with control/bulk_transfer */
   grub_printf("%s: should NOT be called\n", __func__);
   grub_millisleep(60000);
   return GRUB_USB_ERR_INTERNAL;
@@ -347,6 +336,7 @@ cancel_transfer (grub_usb_controller_t dev,
   (void)dev;
   (void)transfer;
 
+  /* we replaced setup/check/cancel_transfer with control/bulk_transfer */
   grub_printf("%s: should NOT be called\n", __func__);
   grub_millisleep(60000);
   return GRUB_USB_ERR_INTERNAL;
@@ -413,6 +403,7 @@ bulk_transfer (grub_usb_device_t dev,
   hci_t *hci = (hci_t *) dev->controller.data;
   int ret = -1;
   int slot_id = -1;
+  (void)timeout;
 
   /* add the printout from GRUB USB stack that we "shorted out" by implementing
    * bulk_transfer callback
@@ -453,6 +444,9 @@ static grub_usb_err_t
 portstatus (grub_usb_controller_t dev,
     unsigned int port, unsigned int enable)
 {
+  (void)dev;
+  (void)port;
+  (void)enable;
   grub_dprintf("xhci", "%s: port=%d enable=%d\n", __func__, port, enable);
   /* Enabling/disabled is handled in detect_dev (easier to match with Coreboot
    * xHCI driver) */
@@ -581,10 +575,9 @@ static struct grub_usb_controller_dev usb_controller_dev = {
 GRUB_MOD_INIT (xhci)
 {
   //dbg ("[loading]\n");
-  int i;
+  size_t i;
 
   xhci_list_num_elems = 0;
-  cur_xhci_id = 0;
 
   for (i = 0; i < sizeof(usbdev_xhc_addr) / sizeof(usbdev_xhc_addr[0]); i++)
   {
