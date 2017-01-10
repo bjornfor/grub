@@ -583,11 +583,8 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
        *
        * Because of how the Coreboot xHCI driver is written, and that we want
        * to change it as little as possible (maintainability), it seems
-       * (way) simpler this way. We have to pay attention to filter out control
-       * messages of SET_ADDRESS type from GRUB. We have to go just low enough
-       * into the Coreboot driver so that we can register the device without it
-       * getting to the point where it complains about missing driver support
-       * for USB class XYZ.
+       * simpler this way. We have to pay attention to filter out control
+       * messages of SET_ADDRESS type from GRUB.
        */
       if (generic_hub_debounce(roothub, port) < 0)
         return GRUB_USB_SPEED_NONE;
