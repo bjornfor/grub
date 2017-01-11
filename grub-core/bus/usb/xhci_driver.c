@@ -109,13 +109,13 @@ static int get_int_arg (const struct grub_arg_list *state)
 }
 
 static void
-print_xhci_status(hci_t *hci)
+print_xhci_status(hci_t *hci, int id)
 {
   usbdev_t *roothub = hci->devices[0];
   generic_hub_t *hub = GEN_HUB(roothub);
   const char *class_str;
 
-  grub_printf("num_ports: %d\n", hub->num_ports);
+  grub_printf("xhci-%d: num_ports=%d devices:\n", id, hub->num_ports);
   for (unsigned int addr = 1; addr < sizeof(hci->devices) / sizeof(hci->devices[0]); addr++)
   {
     usbdev_t *dev = hci->devices[addr];
@@ -239,14 +239,14 @@ do_cmd_xhci_status (grub_extcmd_context_t ctxt, int argc, char *argv[])
       /* get specific device */
       if (i == id)
       {
-        print_xhci_status(xhci->hci);
+        print_xhci_status(xhci->hci, i);
         break;
       }
     }
     else
     {
       /* get all devices */
-      print_xhci_status(xhci->hci);
+      print_xhci_status(xhci->hci, i);
     }
 
   }
