@@ -23,22 +23,32 @@ GRUB_MOD_LICENSE ("GPLv3+");
 static grub_extcmd_t cmd_xhci_status;
 struct grub_preboot *preboot_hook;
 
-/* xHC's set device addresses. But GRUB also want to do that!
- * This adds an address mapping between GRUB and xHCI driver to keep everyone
- * happy. The index is the device address from GRUB, the value is the address
- * assigned by xHC. */
+/* Controller super-structure */
+typedef struct xhci
+{
+  /* The coreboot xhci driver */
+  hci_t *hci;
+
+  /* xHC's set device addresses. But GRUB also want to do that!
+   * This adds an address mapping between GRUB and xHCI driver to keep everyone
+   * happy. The index is the device address from GRUB, the value is the address
+   * assigned by xHC.
+   */
 #define MAX_USB_DEVICES 128
-int usbdev_xhc_addr[MAX_USB_DEVICES];
-/* Remember the current device between calls to detect_dev and
- * control_transfer, so that we know which device to talk to.
- */
-static usbdev_t *last_detected_dev = NULL;
+  int usbdev_xhc_addr[MAX_USB_DEVICES];
+
+  /* Store pointer to usbdev_t for each port of this controller. Needed to
+   * remember which device to talk to when grub calls control/bulk_transfer.
+   */
+#define MAX_PORTS_PER_CONTROLLER 256
+  usbdev_t *usbdev[MAX_PORTS_PER_CONTROLLER];
+} xhci_t;
 
 /* List of found xHCI controllers */
-static hci_t *xhci_list[16];
+static xhci_t *xhci_list[16];
 static size_t xhci_list_num_elems;
 
-static hci_t *xhci_list_first(int *iter)
+static xhci_t *xhci_list_first(int *iter)
 {
   if (xhci_list_num_elems == 0)
   {
@@ -49,7 +59,7 @@ static hci_t *xhci_list_first(int *iter)
   return xhci_list[0];
 }
 
-static int xhci_list_add(hci_t *xhci)
+static int xhci_list_add(xhci_t *xhci)
 {
   if (xhci_list_num_elems >= (sizeof (xhci_list) / sizeof (xhci_list[0])))
   {
@@ -61,7 +71,7 @@ static int xhci_list_add(hci_t *xhci)
   return 0;
 }
 
-static hci_t *xhci_list_next(int *iter)
+static xhci_t *xhci_list_next(int *iter)
 {
   *iter += 1;
   if (*iter >= (int)xhci_list_num_elems)
@@ -203,7 +213,7 @@ static grub_err_t
 do_cmd_xhci_status (grub_extcmd_context_t ctxt, int argc, char *argv[])
 {
   int iter;
-  hci_t *hci;
+  xhci_t *xhci;
   enum op { CMD_NOP, STATUS } op;
   struct grub_arg_list *state = ctxt->state;
   int i = 0;
@@ -222,26 +232,26 @@ do_cmd_xhci_status (grub_extcmd_context_t ctxt, int argc, char *argv[])
     }
   }
 
-  for (i = 0, hci = xhci_list_first(&iter); hci; hci = xhci_list_next(&iter), i++)
+  for (i = 0, xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter), i++)
   {
     if (id >= 0)
     {
       /* get specific device */
       if (i == id)
       {
-        print_xhci_status(hci);
+        print_xhci_status(xhci->hci);
         break;
       }
     }
     else
     {
       /* get all devices */
-      print_xhci_status(hci);
+      print_xhci_status(xhci->hci);
     }
 
   }
 
-  if (id >= 0 && !hci)
+  if (id >= 0 && !xhci)
   {
     grub_printf("no such device (bad --id value: %d)\n", id);
     return GRUB_ERR_UNKNOWN_DEVICE;
@@ -259,7 +269,7 @@ do_cmd_xhci_status (grub_extcmd_context_t ctxt, int argc, char *argv[])
 static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
 {
   (void)data;
-  hci_t *xhci;
+  hci_t *hci;
   grub_uint32_t class_code;
   grub_uint32_t base;
   grub_uint32_t release;
@@ -322,14 +332,22 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
   (void)mmio_base_addr;
 
   grub_uint32_t pciaddr = grub_pci_make_address (dev, 0);
-  xhci = xhci_pci_init (pciaddr);
-  if (!xhci)
+  hci = xhci_pci_init (pciaddr);
+  if (!hci)
     {
       grub_printf ("xhci: out of memory\n");
       return GRUB_USB_ERR_INTERNAL;
     }
 
   /* Build list of xHCI controllers */
+  xhci_t *xhci = grub_malloc(sizeof(xhci_t));
+  if (!xhci)
+  {
+    grub_printf ("xhci: out of memory\n");
+    return GRUB_USB_ERR_INTERNAL;
+  }
+  grub_memset(xhci, 0, sizeof(*xhci));
+  xhci->hci = hci;
   xhci_list_add(xhci);
 
   /* For debug/test, run the full coreboot stack right here */
@@ -345,11 +363,11 @@ static int pci_iter (grub_pci_device_t dev, grub_pci_id_t pciid, void *data)
 static grub_err_t
 xhci_fini_hw (int noreturn __attribute__ ((unused)))
 {
-  hci_t *hci;
+  xhci_t *xhci;
   int iter;
 
   /* We should disable all xHCI HW to prevent any DMA access etc. */
-  for (hci = xhci_list_first(&iter); hci; hci = xhci_list_next(&iter))
+  for (xhci = xhci_list_first(&iter); xhci; xhci = xhci_list_next(&iter))
   {
     /* FIXME: this segfault + reboots machine */
     //grub_dprintf ("xhci", "shutting down controller %p\n", hci);
@@ -389,7 +407,7 @@ xhci_restore_hw (void)
 static int
 xhci_iterate (grub_usb_controller_iterate_hook_t hook, void *hook_data)
 {
-  hci_t *xhci;
+  xhci_t *xhci;
   struct grub_usb_controller dev;
   (void)dev;
   int iter;
@@ -452,9 +470,11 @@ control_transfer (grub_usb_device_t dev,
 		      grub_uint16_t index,
 		      grub_size_t size0, char *data_in)
 {
-  hci_t *hci = (hci_t *) dev->controller.data;
+  xhci_t *xhci = (xhci_t *) dev->controller.data;
+  hci_t *hci = xhci->hci;
   int ret = 0;
   int slot_id; /* the xHC slot used for addressing the device (assigned by xHC) */
+  int portno = dev->portno;
   dev_req_t dr;
   direction_t dir = (reqtype & 128) ? IN : OUT;
 
@@ -467,17 +487,17 @@ control_transfer (grub_usb_device_t dev,
   /* xHCI controllers are made so that *they* set the device address. This
    * conflicts with the GRUB USB driver which assumes it can set the device
    * address by doing a control message.
-   * We work around that by (1) using a temporary global variable,
-   * last_detected_dev, until GRUB tells us the address for the newly connected
-   * device. Then we store the GRUB -> xHC address mapping for later.
+   * We work around that by (1) storing the last connected device for a given
+   * port until GRUB tells us the address for the newly connected device. Then
+   * we store the GRUB -> xHC address mapping for later.
    */
   if (dev->initialized)
   {
-    slot_id = usbdev_xhc_addr[dev->addr];
+    slot_id = xhci->usbdev_xhc_addr[dev->addr];
   }
   else
   {
-    slot_id = last_detected_dev->address;
+    slot_id = xhci->usbdev[portno]->address;
   }
 
   if (request == GRUB_USB_REQ_SET_ADDRESS)
@@ -485,7 +505,7 @@ control_transfer (grub_usb_device_t dev,
     /* Setting the address has already been handled by xHC */
     grub_dprintf("xhci", "creating address map from GRUB to xHC: %d -> %d\n",
         value, slot_id);
-    usbdev_xhc_addr[value] = slot_id;
+    xhci->usbdev_xhc_addr[value] = slot_id;
   }
   else
   {
@@ -502,7 +522,8 @@ bulk_transfer (grub_usb_device_t dev,
 			 grub_transfer_type_t type, int timeout,
 			 grub_size_t *actual)
 {
-  hci_t *hci = (hci_t *) dev->controller.data;
+  xhci_t *xhci = (xhci_t *) dev->controller.data;
+  hci_t *hci = xhci->hci;
   int ret = -1;
   int slot_id = -1;
   (void)timeout;
@@ -521,7 +542,7 @@ bulk_transfer (grub_usb_device_t dev,
   }
 
   /* convert from GRUB addr to xHC addr */
-  slot_id = usbdev_xhc_addr[dev->addr];
+  slot_id = xhci->usbdev_xhc_addr[dev->addr];
 
   usbdev_t *udevf = hci->devices[slot_id];
   endpoint_t *ep = &udevf->endpoints[endpoint->endp_addr & 0x7f];
@@ -534,7 +555,8 @@ bulk_transfer (grub_usb_device_t dev,
 
 static int hubports (grub_usb_controller_t dev)
 {
-  hci_t *hci = (hci_t *) dev->data;
+  xhci_t *xhci = (xhci_t *) dev->data;
+  hci_t *hci = xhci->hci;
   usbdev_t *roothub = hci->devices[0];
   generic_hub_t *hub = GEN_HUB(roothub);
 
@@ -563,7 +585,8 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
   int connected;
   usb_speed speed;
   grub_usb_speed_t grub_speed = GRUB_USB_SPEED_NONE;
-  hci_t *hci = (hci_t *) dev->data;
+  xhci_t *xhci = (xhci_t *) dev->data;
+  hci_t *hci = xhci->hci;
   usbdev_t *roothub = hci->devices[0];
   generic_hub_t *hub = GEN_HUB(roothub);
 
@@ -604,7 +627,7 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
       hub->ports[port] = ret;
       /* remember the newly attached device */
       usbdev_t *udev = ret >= 0 ? hci->devices[ret] : NULL;
-      last_detected_dev = udev;
+      xhci->usbdev[port] = udev;
       //grub_dprintf("xhci", "ep[0].maxpacketsize: %d\n", udev->endpoints[0].maxpacketsize);
     }
     else
@@ -612,6 +635,7 @@ detect_dev (grub_usb_controller_t dev, int port, int *changed)
       /* free resources */
       usb_detach_device(hci, hub->ports[port]);
       hub->ports[port] = NO_DEV;
+      xhci->usbdev[port] = NULL;
     }
   }
 
@@ -678,15 +702,8 @@ static struct grub_usb_controller_dev usb_controller_dev = {
 GRUB_MOD_INIT (xhci)
 {
   //dbg ("[loading]\n");
-  size_t i;
 
   xhci_list_num_elems = 0;
-
-  for (i = 0; i < sizeof(usbdev_xhc_addr) / sizeof(usbdev_xhc_addr[0]); i++)
-  {
-    usbdev_xhc_addr[i] = -1;
-  }
-
   grub_stop_disk_firmware ();
   grub_boot_time ("Initing xHCI hardware");
   grub_pci_iterate (pci_iter, NULL);
