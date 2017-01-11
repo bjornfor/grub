@@ -179,7 +179,7 @@ print_xhci_status(hci_t *hci, int id)
           class_str = "CDC";
           break;
         case ccid_device:
-          class_str = "smartcard / CCID";
+          class_str = "smartcard";
           break;
         case security_device:
           class_str = "content security";
@@ -196,11 +196,14 @@ print_xhci_status(hci_t *hci, int id)
         case wireless_device:
           class_str = "wireless";
           break;
+        case misc_device:
+          class_str = "misc";
+          break;
         default:
           class_str = "UNKNOWN";
           break;
       }
-      grub_printf("  device(vid:pid)=0x%04x:0x%04x USB %x.%02x addr=%02d class/if0=%02x (%s)\n",
+      grub_printf("  device(vid:pid)=0x%04x:0x%04x USB %x.%02x addr=%02d class/if0=0x%02x (%s)\n",
           dev->descriptor->idVendor, dev->descriptor->idProduct,
           dev->descriptor->bcdUSB >> 8, dev->descriptor->bcdUSB & 0xff,
           dev->address, class, class_str);
