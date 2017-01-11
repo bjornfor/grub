@@ -434,7 +434,7 @@ setup_transfer (grub_usb_controller_t dev,
   (void)transfer;
   /* we replaced setup/check/cancel_transfer with control/bulk_transfer */
   grub_printf("%s: should NOT be called\n", __func__);
-  grub_millisleep(60000);
+  grub_millisleep(5000);
   return GRUB_USB_ERR_INTERNAL;
 }
 
@@ -448,7 +448,7 @@ check_transfer (grub_usb_controller_t dev,
 
   /* we replaced setup/check/cancel_transfer with control/bulk_transfer */
   grub_printf("%s: should NOT be called\n", __func__);
-  grub_millisleep(60000);
+  grub_millisleep(5000);
   return GRUB_USB_ERR_INTERNAL;
 }
 
@@ -461,7 +461,7 @@ cancel_transfer (grub_usb_controller_t dev,
 
   /* we replaced setup/check/cancel_transfer with control/bulk_transfer */
   grub_printf("%s: should NOT be called\n", __func__);
-  grub_millisleep(60000);
+  grub_millisleep(5000);
   return GRUB_USB_ERR_INTERNAL;
 }
 
