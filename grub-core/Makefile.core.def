@@ -594,7 +594,8 @@ module = {
   common = bus/usb/xhci/coreboot_io.c;
   common = bus/usb/xhci_driver.c;
   enable = pci;
-  cflags = '-Wno-error=unused-parameter -Wno-error=sign-compare -Wno-error=pointer-arith -Wno-error=unused-function -Wno-error=empty-body';
+  # Disable many warnings for Coreboot xHCI driver.
+  cflags = '-Wno-error=unused-parameter -Wno-error=sign-compare -Wno-error=pointer-arith -Wno-error=unused-function -Wno-error=empty-body -Wno-error=type-limits';
   cppflags = '-I$(srcdir)/bus/usb/xhci -I$(srcdir)/lib/posix_wrap -I$(top_builddir)/include/grub/machine';
 };
 
