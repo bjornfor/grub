@@ -114,9 +114,10 @@ print_xhci_status(hci_t *hci, int id)
   usbdev_t *roothub = hci->devices[0];
   generic_hub_t *hub = GEN_HUB(roothub);
   const char *class_str;
+  unsigned int addr = 0;
 
   grub_printf("xhci-%d: num_ports=%d devices:\n", id, hub->num_ports);
-  for (unsigned int addr = 1; addr < sizeof(hci->devices) / sizeof(hci->devices[0]); addr++)
+  for (addr = 1; addr < sizeof(hci->devices) / sizeof(hci->devices[0]); addr++)
   {
     usbdev_t *dev = hci->devices[addr];
     if (dev)
