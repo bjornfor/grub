@@ -645,8 +645,8 @@ poll_nonroot_hub (grub_usb_device_t dev)
 		  }
 		
 	      /* Add the device and assign a device address to it.  */
-	      next_dev = grub_usb_hub_add_dev (&dev->controller, speed, i,
-					       split_hubport, split_hubaddr);
+	      next_dev = grub_usb_hub_add_dev (&dev->controller, speed,
+					       split_hubport, split_hubaddr, i);
 	      if (dev->controller.dev->pending_reset)
 		{
 		  dev->controller.dev->pending_reset = 0;
